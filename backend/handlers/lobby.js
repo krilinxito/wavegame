@@ -1,0 +1,241 @@
+const pool = require('../db');
+const { getPlayersForGame, updatePlayerSocket } = require('../services/playerService');
+const { getGame, getGameByCode, updateGameConfig, startGame, rotatePsychic } = require('../services/gameService');
+const { createRound, getUnusedCategory, markCategoryUsed } = require('../services/roundService');
+const { offerPowers } = require('../services/powerService');
+const { v4: uuidv4 } = require('uuid');
+
+module.exports = function lobbyHandlers(io, socket) {
+
+  socket.on('join_room', async ({ roomCode, playerId, displayName, photoPath }) => {
+    try {
+      const game = await getGameByCode(roomCode);
+      if (!game) return socket.emit('error', { code: 'NOT_FOUND', message: 'Sala no encontrada' });
+      if (game.status === 'finished') return socket.emit('error', { code: 'GAME_OVER', message: 'El juego ya terminó' });
+
+      socket.join(roomCode);
+
+      let player;
+      if (playerId) {
+        // Reconnecting
+        const [rows] = await pool.execute('SELECT * FROM players WHERE id=? AND game_id=?', [playerId, game.id]);
+        player = rows[0];
+      }
+
+      if (!player) {
+        // New player
+        const id = uuidv4();
+        const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM players WHERE game_id=?', [game.id]);
+        const isHost = existing[0].cnt === 0;
+        const turnOrder = existing[0].cnt;
+        await pool.execute(
+          'INSERT INTO players (id, game_id, display_name, photo_path, is_host, turn_order) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, game.id, (displayName || 'Player').trim().substring(0, 50), photoPath || null, isHost, turnOrder]
+        );
+        const [newRows] = await pool.execute('SELECT * FROM players WHERE id=?', [id]);
+        player = newRows[0];
+      }
+
+      await updatePlayerSocket(player.id, socket.id, true);
+      // Attach metadata to socket for disconnect handling
+      socket.data.playerId = player.id;
+      socket.data.gameId = game.id;
+      socket.data.roomCode = roomCode;
+
+      const players = await getPlayersForGame(game.id);
+      const [categories] = await pool.execute(
+        'SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE game_id=? ORDER BY created_at',
+        [game.id]
+      );
+
+      socket.emit('room_joined', { game, players, myPlayer: player, categories });
+      socket.to(roomCode).emit('player_joined', { player: { ...player, socket_id: undefined } });
+
+    } catch (err) {
+      console.error('join_room error:', err);
+      socket.emit('error', { code: 'SERVER_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('update_player', async ({ playerId, displayName, photoPath }) => {
+    try {
+      const updates = [];
+      const vals = [];
+      if (displayName) { updates.push('display_name=?'); vals.push(displayName.trim().substring(0, 50)); }
+      if (photoPath !== undefined) { updates.push('photo_path=?'); vals.push(photoPath); }
+      if (!updates.length) return;
+
+      vals.push(playerId);
+      await pool.execute(`UPDATE players SET ${updates.join(',')} WHERE id=?`, vals);
+      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+      const player = rows[0];
+      io.to(socket.data.roomCode).emit('player_updated', { player });
+    } catch (err) {
+      socket.emit('error', { code: 'UPDATE_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('host_update_config', async ({ gameId, mode, range_min, range_max, win_condition, win_value, guess_time }) => {
+    try {
+      const player = await getPlayerFromSocket(socket.data.playerId);
+      if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede cambiar la config' });
+
+      await updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time });
+      const game = await getGame(gameId);
+      io.to(socket.data.roomCode).emit('config_updated', { game });
+    } catch (err) {
+      socket.emit('error', { code: 'CONFIG_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('add_category', async ({ gameId, term, left_extreme, right_extreme, playerId }) => {
+    try {
+      const id = uuidv4();
+      await pool.execute(
+        'INSERT INTO categories (id, game_id, term, left_extreme, right_extreme, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, gameId, term.trim(), left_extreme.trim(), right_extreme.trim(), playerId]
+      );
+      // Send category to all in lobby
+      const [rows] = await pool.execute('SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE id=?', [id]);
+      io.to(socket.data.roomCode).emit('category_added', { category: rows[0] });
+    } catch (err) {
+      socket.emit('error', { code: 'CATEGORY_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('remove_category', async ({ categoryId, playerId }) => {
+    try {
+      // Only the creator or host can remove
+      const [rows] = await pool.execute('SELECT * FROM categories WHERE id=?', [categoryId]);
+      if (!rows.length) return;
+      const cat = rows[0];
+      const [playerRows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+      const player = playerRows[0];
+      if (cat.created_by !== playerId && !player?.is_host) return;
+
+      await pool.execute('DELETE FROM categories WHERE id=?', [categoryId]);
+      io.to(socket.data.roomCode).emit('category_removed', { categoryId });
+    } catch (err) {
+      socket.emit('error', { code: 'CATEGORY_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('host_start_game', async ({ gameId, playerId }) => {
+    try {
+      const [playerRows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+      const player = playerRows[0];
+      if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede iniciar' });
+
+      const game = await getGame(gameId);
+      if (game.status !== 'lobby') return socket.emit('error', { code: 'ALREADY_STARTED', message: 'El juego ya inició' });
+
+      const [countRows] = await pool.execute('SELECT COUNT(*) as cnt FROM players WHERE game_id=?', [gameId]);
+      const playerCount = countRows[0].cnt;
+      const minPlayers = game.mode === 'teams' ? 4 : 2;
+      if (playerCount < minPlayers) {
+        return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: `Necesitás al menos ${minPlayers} jugadores para el modo ${game.mode}` });
+      }
+
+      await startGame(gameId);
+      const updatedGame = await getGame(gameId);
+      io.to(socket.data.roomCode).emit('game_started', { game: updatedGame });
+
+      // Start first round automatically
+      await startNextRound(io, socket.data.roomCode, gameId, updatedGame.mode);
+
+    } catch (err) {
+      console.error('host_start_game error:', err);
+      socket.emit('error', { code: 'START_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('set_team', async ({ team }) => {
+    try {
+      const playerId = socket.data.playerId;
+      if (team !== 1 && team !== 2) return;
+      await pool.execute('UPDATE players SET team=? WHERE id=?', [team, playerId]);
+      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+      io.to(socket.data.roomCode).emit('player_updated', { player: rows[0] });
+    } catch (err) {
+      socket.emit('error', { code: 'TEAM_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('next_round', async ({ gameId }) => {
+    try {
+      const game = await getGame(gameId);
+      await startNextRound(io, socket.data.roomCode, gameId, game.mode);
+    } catch (err) {
+      socket.emit('error', { code: 'ROUND_ERROR', message: err.message });
+    }
+  });
+
+  // Disconnect: mark player as disconnected
+  socket.on('disconnect', async () => {
+    if (socket.data.playerId) {
+      try {
+        await updatePlayerSocket(socket.data.playerId, null, false);
+        if (socket.data.roomCode) {
+          socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
+        }
+      } catch (err) {
+        console.error('disconnect error:', err);
+      }
+    }
+  });
+};
+
+async function getPlayerFromSocket(playerId) {
+  if (!playerId) return null;
+  const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+  return rows[0] || null;
+}
+
+async function startNextRound(io, roomCode, gameId, mode) {
+  const psychic = await rotatePsychic(gameId);
+  if (!psychic) return;
+
+  const game = await getGame(gameId);
+  const category = await getUnusedCategory(gameId);
+  if (!category) {
+    io.to(roomCode).emit('error', { code: 'NO_CATEGORIES', message: 'No hay más categorías disponibles' });
+    return;
+  }
+
+  await markCategoryUsed(category.id);
+  const round = await createRound(gameId, psychic.id, game.current_round);
+
+  const players = await getPlayersForGame(gameId);
+  const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected).map(p => p.id);
+  const powerOffers = await offerPowers(round.id, nonPsychicIds, mode);
+
+  // Broadcast round_started to all (without target)
+  const roundPublic = { ...round, target_pct: undefined };
+  io.to(roomCode).emit('round_started', {
+    round: roundPublic,
+    category: {
+      id: category.id,
+      term: category.term,
+      left_extreme: category.left_extreme,
+      right_extreme: category.right_extreme,
+      created_by: category.created_by,
+    },
+    psychicName: psychic.display_name,
+  });
+
+  // Send target_pct only to psychic's socket
+  const [psychicRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [psychic.id]);
+  if (psychicRows[0]?.socket_id) {
+    io.to(psychicRows[0].socket_id).emit('psychic_target', { roundId: round.id, targetPct: parseFloat(round.target_pct) });
+  }
+
+  // Send power offers individually
+  for (const [playerId, offer] of Object.entries(powerOffers)) {
+    const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
+    if (pRows[0]?.socket_id) {
+      io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power });
+    }
+  }
+}
+
+module.exports.startNextRound = startNextRound;

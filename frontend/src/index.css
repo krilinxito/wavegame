@@ -1,0 +1,70 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Palette Apple clásica — crema/beige parchment */
+  --c-bg:       #e8dcc8;
+  --c-surface:  #dfd3bb;
+  --c-surface2: #d3c7ae;
+
+  --c-border:   rgba(80,55,25,0.22);
+  --c-border2:  rgba(80,55,25,0.40);
+
+  --c-text:     #1a0e02;
+  --c-muted:    #7a6245;
+
+  --c-accent:   #b83820;   /* apple red */
+  --c-accent2:  #7a4200;   /* amber oscuro para títulos */
+  --c-red:      #b83820;
+  --c-green:    #3d7a1e;
+  --c-yellow:   #b88000;
+  --c-blue:     #2a5a96;
+  --c-orange:   #c84a00;
+
+  /* Radios pequeños — estilo Mac clásico */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+
+  /* Sombras duras estilo ventana Mac */
+  --shadow-sm:     2px 2px 0 rgba(0,0,0,0.18);
+  --shadow-md:     3px 3px 0 rgba(0,0,0,0.18);
+  --shadow-window: 3px 3px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(0,0,0,0.10);
+
+  /* Bevel para botones (relieve clásico) */
+  --bevel-up:   inset 1px 1px 0 rgba(255,255,255,0.55), inset -1px -1px 0 rgba(0,0,0,0.18);
+  --bevel-down: inset -1px -1px 0 rgba(255,255,255,0.35), inset 1px 1px 0 rgba(0,0,0,0.18);
+}
+
+html, body {
+  height: 100%;
+  background: var(--c-bg);
+  /* Textura puntito muy sutil — papel parchment */
+  background-image: radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 18px 18px;
+  color: var(--c-text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 16px;
+}
+
+#root { min-height: 100vh; }
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  box-shadow: var(--bevel-down);
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--c-border2); border-radius: 2px; }
