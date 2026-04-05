@@ -63,12 +63,14 @@ module.exports = function roundHandlers(io, socket) {
       await submitGuess(roundId, playerId, pct, isFirst);
 
       const [playerRows] = await pool.execute('SELECT display_name, photo_path FROM players WHERE id=?', [playerId]);
+      // Broadcast to room WITHOUT position (so others can't see where you guessed)
       io.to(socket.data.roomCode).emit('guess_submitted', {
         roundId, playerId, isFirst,
         playerName: playerRows[0]?.display_name,
         photoPath: playerRows[0]?.photo_path,
-        guessPct: pct,
       });
+      // Send position only to the guesser as confirmation
+      socket.emit('guess_confirmed', { roundId, guessPct: pct });
 
       // Check if all eligible players guessed
       const allPlayers = await getPlayersForGame(round.game_id);

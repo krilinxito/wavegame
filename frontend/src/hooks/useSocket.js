@@ -42,8 +42,20 @@ export function useSocket() {
       if (cur) store.setRound({ ...cur, clue, status: 'guessing' });
     });
 
-    socket.on('guess_submitted', ({ playerId, playerName, photoPath, guessPct }) => {
-      store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct });
+    socket.on('guess_submitted', ({ playerId, playerName, photoPath }) => {
+      // No guessPct — positions hidden until reveal
+      store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct: null });
+    });
+
+    socket.on('guess_confirmed', ({ guessPct }) => {
+      const myPlayer = useGameStore.getState().myPlayer;
+      if (!myPlayer) return;
+      store.addSubmittedGuess({
+        playerId: myPlayer.id,
+        playerName: myPlayer.display_name,
+        photoPath: myPlayer.photo_path,
+        guessPct,
+      });
     });
 
     socket.on('power_offered', ({ roundPowerId, power }) => {
@@ -118,6 +130,7 @@ export function useSocket() {
       socket.off('power_activated');
       socket.off('bloqueo_applied');
       socket.off('guess_submitted');
+      socket.off('guess_confirmed');
       socket.off('round_revealed');
       socket.off('scores_updated');
       socket.off('game_over');

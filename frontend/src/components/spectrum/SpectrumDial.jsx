@@ -239,8 +239,8 @@ export default function SpectrumDial({
           </motion.g>
         )}
 
-        {/* Real-time submitted guess markers (guessing phase) */}
-        {!isRevealing && submittedGuesses.map((g) => {
+        {/* Real-time submitted guess markers (guessing phase) — only show own position */}
+        {!isRevealing && submittedGuesses.filter(g => g.guessPct !== null).map((g) => {
           const color = getPlayerColor(g.playerId);
           const pos = pctToXY(g.guessPct, R + 20);
           const arcPt = pctToXY(g.guessPct, R + 2);

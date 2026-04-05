@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
 
-const EMOJIS = ['👏', '🔥', '😂', '😮', '💀', '❤️', '🎯', '😎'];
+const EMOJIS = [
+  '👏','🔥','😂','😮','💀','❤️','🎯','😎',
+  '🤣','😭','🥶','🤯','🫡','💯','🗿','🤡',
+  '👀','✨','🎉','💥','🍆','🫠','🥵','😈',
+];
 
 export default function ReactionBar() {
   const { players, myPlayer } = useGameStore();
@@ -61,6 +65,7 @@ export default function ReactionBar() {
         background: 'var(--c-surface)', border: '1px solid var(--c-border2)',
         borderRadius: 999, padding: '6px 12px',
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        overflowX: 'auto', maxWidth: '90vw',
       }}>
         {EMOJIS.map(e => (
           <button

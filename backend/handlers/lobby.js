@@ -173,7 +173,7 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('send_reaction', ({ emoji }) => {
     if (!socket.data.roomCode) return;
-    const validEmojis = ['👏','🔥','😂','😮','💀','❤️','🎯','😎'];
+    const validEmojis = ['👏','🔥','😂','😮','💀','❤️','🎯','😎','🤣','😭','🥶','🤯','🫡','💯','🗿','🤡','👀','✨','🎉','💥','🍆','🫠','🥵','😈'];
     if (!validEmojis.includes(emoji)) return;
     io.to(socket.data.roomCode).emit('reaction_received', {
       emoji,
@@ -274,7 +274,19 @@ async function startNextRound(io, roomCode, gameId, mode) {
   const game = await getGame(gameId);
   const category = await getUnusedCategory(gameId);
   if (!category) {
-    io.to(roomCode).emit('no_categories', {});
+    // End game: winner is the player with most points
+    const allPlayers = await getPlayersForGame(gameId);
+    const active = allPlayers.filter(p => !p.is_spectator);
+    const sorted = [...active].sort((a, b) => b.score - a.score);
+    const winner = sorted[0] || null;
+    await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+    io.to(roomCode).emit('game_over', {
+      winner,
+      winnerTeam: null,
+      teamScore: null,
+      finalScores: sorted,
+      reason: 'no_categories',
+    });
     return;
   }
 
