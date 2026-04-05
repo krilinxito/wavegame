@@ -72,7 +72,7 @@ module.exports = function roundHandlers(io, socket) {
 
       // Check if all eligible players guessed
       const allPlayers = await getPlayersForGame(round.game_id);
-      const eligible = allPlayers.filter(p => p.id !== round.psychic_id && p.connected);
+      const eligible = allPlayers.filter(p => p.id !== round.psychic_id && p.connected && !p.is_spectator);
       const [guesses] = await pool.execute('SELECT player_id FROM guesses WHERE round_id=?', [roundId]);
       const guessedIds = new Set(guesses.map(g => g.player_id));
 
@@ -206,6 +206,8 @@ async function triggerReveal(io, socket, roundId) {
     if (winResult.won) {
       io.to(socket.data.roomCode).emit('game_over', {
         winner: winResult.winner,
+        winnerTeam: winResult.winnerTeam ?? null,
+        teamScore: winResult.teamScore ?? null,
         finalScores: players.sort((a, b) => b.score - a.score),
       });
     }

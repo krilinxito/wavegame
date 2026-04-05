@@ -14,6 +14,11 @@ async function offerPowers(roundId, playerIds, mode) {
   const offers = {};
 
   for (const playerId of playerIds) {
+    // 25% chance of no power this round
+    if (Math.random() < 0.25) {
+      offers[playerId] = { roundPowerId: null, power: null };
+      continue;
+    }
     const power = powers[Math.floor(Math.random() * powers.length)];
     const id = uuidv4();
     await pool.execute(

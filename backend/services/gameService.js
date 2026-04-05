@@ -25,7 +25,7 @@ async function startGame(gameId) {
 async function rotatePsychic(gameId) {
   const game = await getGame(gameId);
   const players = await getPlayersForGame(gameId);
-  const activePlayers = players.filter(p => p.connected);
+  const activePlayers = players.filter(p => p.connected && !p.is_spectator);
   if (!activePlayers.length) return null;
 
   let nextPsychic;
@@ -51,16 +51,50 @@ async function rotatePsychic(gameId) {
 async function checkWinCondition(gameId) {
   const game = await getGame(gameId);
   const players = await getPlayersForGame(gameId);
+  const active = players.filter(p => !p.is_spectator);
+
+  if (game.mode === 'teams') {
+    // Build team scores
+    const teamScores = {};
+    const teamPlayers = {};
+    for (const p of active) {
+      if (!p.team) continue;
+      teamScores[p.team] = (teamScores[p.team] || 0) + p.score;
+      teamPlayers[p.team] = [...(teamPlayers[p.team] || []), p];
+    }
+
+    const checkTeams = () => {
+      const sorted = Object.entries(teamScores).sort(([,a],[,b]) => b - a);
+      if (!sorted.length) return null;
+      const [teamNum, score] = sorted[0];
+      return { teamNum: parseInt(teamNum), score, members: teamPlayers[teamNum] || [] };
+    };
+
+    if (game.win_condition === 'points') {
+      const best = checkTeams();
+      if (best && best.score >= game.win_value) {
+        await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+        return { won: true, winner: best.members[0], winnerTeam: best.teamNum, teamScore: best.score, type: 'team_points' };
+      }
+    } else if (game.win_condition === 'rounds') {
+      if (game.current_round >= game.win_value) {
+        const best = checkTeams();
+        await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+        return { won: true, winner: best?.members[0], winnerTeam: best?.teamNum, teamScore: best?.score, type: 'team_rounds' };
+      }
+    }
+    return { won: false };
+  }
 
   if (game.win_condition === 'points') {
-    const winner = players.find(p => p.score >= game.win_value);
+    const winner = active.find(p => p.score >= game.win_value);
     if (winner) {
       await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
       return { won: true, winner, type: 'points' };
     }
   } else if (game.win_condition === 'rounds') {
     if (game.current_round >= game.win_value) {
-      const sorted = [...players].sort((a, b) => b.score - a.score);
+      const sorted = [...active].sort((a, b) => b.score - a.score);
       const winner = sorted[0];
       await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
       return { won: true, winner, type: 'rounds' };

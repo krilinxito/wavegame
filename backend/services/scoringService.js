@@ -5,13 +5,16 @@ const ZONE_NEAR     = 0.10; // ±10% → +2 pts
 const CENTER        = 0.50; // midpoint of dial
 
 /**
- * Compute miss penalty based on distance from center of dial.
- * At center (dist=0): -1 pt
- * At edge   (dist=0.5): -4 pts
+ * Compute miss penalty based on distance from the TARGET.
+ * Close miss  (≤20%): -1
+ * Medium miss (≤35%): -2
+ * Far miss    (>35%): -3
  */
-function missPenalty(guessPct) {
-  const distFromCenter = Math.abs(guessPct - CENTER); // 0.0–0.5
-  return -Math.round(1 + (distFromCenter / 0.5) * 3);  // -1 to -4
+function missPenalty(guessPct, targetPct) {
+  const dist = Math.abs(guessPct - targetPct);
+  if (dist <= 0.20) return -1;
+  if (dist <= 0.35) return -2;
+  return -3;
 }
 
 /**
@@ -25,7 +28,7 @@ function computeCuartilesScore(guessPct, targetPct) {
   const guessQuartile  = Math.min(Math.floor(guessPct * 4), 3);
 
   if (guessQuartile !== targetQuartile) {
-    return { delta: missPenalty(guessPct), reason: 'cuartiles_miss' };
+    return { delta: missPenalty(guessPct, targetPct), reason: 'cuartiles_miss' };
   }
 
   // Center of the target's quartile
@@ -85,7 +88,7 @@ function computeScore(guessPct, targetPct, playerId, activePowers = []) {
   if (hasVeneno)          multiplier *= 2.0;
   if (isBloqueoActivator) multiplier *= 1.5;
 
-  const penalty = Math.floor(missPenalty(guessPct) * multiplier);
+  const penalty = Math.floor(missPenalty(guessPct, targetPct) * multiplier);
   return { delta: penalty, reason: multiplier > 1 ? 'miss_penalty' : 'miss' };
 }
 

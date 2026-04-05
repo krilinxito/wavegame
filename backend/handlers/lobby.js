@@ -133,11 +133,29 @@ module.exports = function lobbyHandlers(io, socket) {
       const game = await getGame(gameId);
       if (game.status !== 'lobby') return socket.emit('error', { code: 'ALREADY_STARTED', message: 'El juego ya inició' });
 
-      const [countRows] = await pool.execute('SELECT COUNT(*) as cnt FROM players WHERE game_id=?', [gameId]);
-      const playerCount = countRows[0].cnt;
-      const minPlayers = game.mode === 'teams' ? 4 : 2;
-      if (playerCount < minPlayers) {
-        return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: `Necesitás al menos ${minPlayers} jugadores para el modo ${game.mode}` });
+      const allPlayers = await getPlayersForGame(gameId);
+
+      if (game.mode === 'teams') {
+        // Auto-spectate players not in a complete pair (team with 2 members)
+        const teamCounts = {};
+        for (const p of allPlayers) {
+          if (p.team) teamCounts[p.team] = (teamCounts[p.team] || 0) + 1;
+        }
+        const completePairs = Object.values(teamCounts).filter(c => c === 2).length;
+        if (completePairs === 0)
+          return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Necesitás al menos una pareja completa para el modo Teams' });
+
+        // Spectate players in incomplete teams or with no team
+        for (const p of allPlayers) {
+          const inCompletePair = p.team && teamCounts[p.team] === 2;
+          if (!inCompletePair && !p.is_spectator) {
+            await pool.execute('UPDATE players SET is_spectator=TRUE, team=NULL WHERE id=?', [p.id]);
+          }
+        }
+      } else {
+        const activePlayers = allPlayers.filter(p => !p.is_spectator);
+        if (activePlayers.length < 2)
+          return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Necesitás al menos 2 jugadores para iniciar' });
       }
 
       await startGame(gameId);
@@ -187,12 +205,35 @@ module.exports = function lobbyHandlers(io, socket) {
   socket.on('set_team', async ({ team }) => {
     try {
       const playerId = socket.data.playerId;
-      if (team !== 1 && team !== 2) return;
-      await pool.execute('UPDATE players SET team=? WHERE id=?', [team, playerId]);
+      if (team !== null && (typeof team !== 'number' || team < 1)) return;
+
+      if (team !== null) {
+        const [members] = await pool.execute(
+          'SELECT COUNT(*) as cnt FROM players WHERE game_id=? AND team=? AND id!=?',
+          [socket.data.gameId, team, playerId]
+        );
+        if (members[0].cnt >= 2)
+          return socket.emit('error', { code: 'TEAM_FULL', message: 'Esa pareja ya está completa' });
+      }
+
+      await pool.execute('UPDATE players SET team=?, is_spectator=FALSE WHERE id=?', [team, playerId]);
       const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
       io.to(socket.data.roomCode).emit('player_updated', { player: rows[0] });
     } catch (err) {
       socket.emit('error', { code: 'TEAM_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('toggle_spectator', async () => {
+    try {
+      const playerId = socket.data.playerId;
+      const [rows] = await pool.execute('SELECT is_spectator FROM players WHERE id=?', [playerId]);
+      const newVal = rows[0]?.is_spectator ? 0 : 1;
+      await pool.execute('UPDATE players SET is_spectator=?, team=NULL WHERE id=?', [newVal, playerId]);
+      const [updated] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
+      io.to(socket.data.roomCode).emit('player_updated', { player: updated[0] });
+    } catch (err) {
+      socket.emit('error', { code: 'SPECTATOR_ERROR', message: err.message });
     }
   });
 
