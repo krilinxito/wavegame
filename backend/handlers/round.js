@@ -50,9 +50,14 @@ module.exports = function roundHandlers(io, socket) {
       const [existing] = await pool.execute('SELECT id FROM guesses WHERE round_id=? AND player_id=?', [roundId, playerId]);
       if (existing.length) return socket.emit('error', { code: 'ALREADY_GUESSED', message: 'Ya adivinaste' });
 
-      // For BASTA: check if first
       const game = await getGame(round.game_id);
       const [guessCount] = await pool.execute('SELECT COUNT(*) as cnt FROM guesses WHERE round_id=?', [roundId]);
+
+      // BASTA: only the first guess is allowed
+      if (game.mode === 'basta' && guessCount[0].cnt > 0) {
+        return socket.emit('error', { code: 'BASTA_CALLED', message: 'Ya se dijo BASTA' });
+      }
+
       const isFirst = game.mode === 'basta' && guessCount[0].cnt === 0;
 
       await submitGuess(roundId, playerId, pct, isFirst);
@@ -82,11 +87,9 @@ module.exports = function roundHandlers(io, socket) {
       const allIn = effectiveEligible.every(p => guessedIds.has(p.id));
       if (allIn) {
         io.to(socket.data.roomCode).emit('all_guesses_in', { roundId });
-      }
-
-      // BASTA: first submission triggers immediate reveal if they're first
-      if (isFirst && game.mode === 'basta') {
-        // Wait a moment then auto-reveal
+        setTimeout(() => triggerReveal(io, socket, roundId), 1500);
+      } else if (isFirst && game.mode === 'basta') {
+        // BASTA: first guess triggers immediate reveal
         setTimeout(() => triggerReveal(io, socket, roundId), 1500);
       }
 
@@ -102,13 +105,11 @@ module.exports = function roundHandlers(io, socket) {
       if (!round) return socket.emit('error', { code: 'NOT_FOUND', message: 'Ronda no encontrada' });
       if (round.status !== 'guessing') return socket.emit('error', { code: 'WRONG_PHASE', message: 'No es la fase de adivinanza' });
 
-      // Only host or psychic can trigger reveal
+      // Only host can manually trigger reveal
       const playerId = socket.data.playerId;
-      const game = await getGame(round.game_id);
       const [hostRows] = await pool.execute('SELECT id FROM players WHERE game_id=? AND is_host=TRUE', [round.game_id]);
       const isHost = hostRows[0]?.id === playerId;
-      const isPsychic = round.psychic_id === playerId;
-      if (!isHost && !isPsychic) return socket.emit('error', { code: 'NOT_AUTHORIZED', message: 'Solo el host o el psychic pueden revelar' });
+      if (!isHost) return socket.emit('error', { code: 'NOT_AUTHORIZED', message: 'Solo el host puede revelar' });
 
       await triggerReveal(io, socket, roundId);
     } catch (err) {
