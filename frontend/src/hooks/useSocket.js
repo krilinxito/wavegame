@@ -80,6 +80,22 @@ export function useSocket() {
       store.setGameOver({ winner, finalScores });
     });
 
+    socket.on('no_categories', () => {
+      useGameStore.setState({ noCategories: true });
+    });
+
+    socket.on('game_reset', ({ game, players, categories }) => {
+      const myPlayer = useGameStore.getState().myPlayer;
+      const updatedMe = players.find(p => p.id === myPlayer?.id) ?? myPlayer;
+      useGameStore.setState({
+        game, players, myPlayer: updatedMe,
+        round: null, category: null, myPower: null,
+        revealData: null, gameOver: null, noCategories: false,
+        activePowers: [], submittedGuesses: [],
+        categories: categories || [],
+      });
+    });
+
     socket.on('error', ({ code, message }) => {
       console.warn('[Socket Error]', code, message);
       // Toast notifications handled in components
@@ -105,6 +121,8 @@ export function useSocket() {
       socket.off('round_revealed');
       socket.off('scores_updated');
       socket.off('game_over');
+      socket.off('no_categories');
+      socket.off('game_reset');
       socket.off('error');
     };
   }, []);

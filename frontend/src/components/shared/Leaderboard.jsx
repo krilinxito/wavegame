@@ -4,7 +4,7 @@ import useGameStore from '../../store/gameStore';
 
 export default function Leaderboard({ compact = false }) {
   const { players, round } = useGameStore();
-  const sorted = [...players].sort((a, b) => b.score - a.score);
+  const sorted = [...players].filter(p => p.connected).sort((a, b) => b.score - a.score);
 
   return (
     <div style={{

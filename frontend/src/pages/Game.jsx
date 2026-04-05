@@ -4,19 +4,21 @@ import Guessing from '../components/round/Guessing';
 import Revealing from '../components/round/Revealing';
 import PowerCard from '../components/powers/PowerCard';
 import Leaderboard from '../components/shared/Leaderboard';
+import ReactionBar from '../components/shared/ReactionBar';
 import Button from '../components/shared/Button';
 import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
 
 export default function Game() {
-  const { round, game, myPlayer, players, gameOver, revealData } = useGameStore();
+  const { round, game, myPlayer, players, gameOver, noCategories, revealData } = useGameStore();
   if (!game || !myPlayer) return null;
 
   const isHost = !!myPlayer.is_host;
 
-  const advanceRound  = () => socket.emit('next_round',     { gameId: game.id });
-  const requestReveal = () => socket.emit('request_reveal', { roundId: round?.id });
+  const advanceRound  = () => socket.emit('next_round',      { gameId: game.id });
+  const requestReveal = () => socket.emit('request_reveal',  { roundId: round?.id });
+  const returnToLobby = () => socket.emit('return_to_lobby', { gameId: game.id });
 
   // Game over
   if (gameOver) {
@@ -53,6 +55,36 @@ export default function Game() {
             );
           })}
         </motion.div>
+
+        {isHost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+            <Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button>
+          </motion.div>
+        )}
+        {!isHost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+            style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>
+            Esperando al host...
+          </motion.div>
+        )}
+        <ReactionBar />
+      </div>
+    );
+  }
+
+  // No categories left
+  if (noCategories) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', gap: 20 }}>
+        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: 'var(--c-accent2)', marginBottom: 8 }}>Sin más categorías</div>
+          <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>Se acabaron las cartas del mazo</div>
+        </motion.div>
+        {isHost
+          ? <Button onClick={returnToLobby}>Volver al lobby</Button>
+          : <div style={{ color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</div>
+        }
+        <ReactionBar />
       </div>
     );
   }
@@ -133,6 +165,7 @@ export default function Game() {
       </div>
 
       <PowerCard />
+      <ReactionBar />
     </div>
   );
 }

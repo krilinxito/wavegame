@@ -14,11 +14,10 @@ export default function App() {
 
   useSocket(); // mount all socket listeners
 
-  // Navigate to game when game starts
+  // Navigate based on game status
   useEffect(() => {
-    if (game?.status === 'playing' && page === 'lobby') {
-      setPage('game');
-    }
+    if (game?.status === 'playing' && page === 'lobby') setPage('game');
+    if (game?.status === 'lobby'   && page === 'game')  setPage('lobby');
   }, [game?.status]);
 
   // Listen for socket errors to show toast

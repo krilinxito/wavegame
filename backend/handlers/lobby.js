@@ -153,6 +153,37 @@ module.exports = function lobbyHandlers(io, socket) {
     }
   });
 
+  socket.on('send_reaction', ({ emoji }) => {
+    if (!socket.data.roomCode) return;
+    const validEmojis = ['👏','🔥','😂','😮','💀','❤️','🎯','😎'];
+    if (!validEmojis.includes(emoji)) return;
+    io.to(socket.data.roomCode).emit('reaction_received', {
+      emoji,
+      playerId: socket.data.playerId,
+    });
+  });
+
+  socket.on('return_to_lobby', async ({ gameId }) => {
+    try {
+      const [hostRows] = await pool.execute('SELECT id FROM players WHERE game_id=? AND is_host=TRUE', [gameId]);
+      if (hostRows[0]?.id !== socket.data.playerId) return;
+
+      await pool.execute("UPDATE games SET status='lobby', current_round=0, psychic_id=NULL WHERE id=?", [gameId]);
+      await pool.execute('UPDATE players SET score=0 WHERE game_id=?', [gameId]);
+      await pool.execute('UPDATE categories SET used=FALSE WHERE game_id=?', [gameId]);
+
+      const game = await getGame(gameId);
+      const players = await getPlayersForGame(game.id);
+      const [categories] = await pool.execute(
+        'SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE game_id=? ORDER BY created_at',
+        [gameId]
+      );
+      io.to(socket.data.roomCode).emit('game_reset', { game, players, categories });
+    } catch (err) {
+      socket.emit('error', { code: 'RESET_ERROR', message: err.message });
+    }
+  });
+
   socket.on('set_team', async ({ team }) => {
     try {
       const playerId = socket.data.playerId;
@@ -202,7 +233,7 @@ async function startNextRound(io, roomCode, gameId, mode) {
   const game = await getGame(gameId);
   const category = await getUnusedCategory(gameId);
   if (!category) {
-    io.to(roomCode).emit('error', { code: 'NO_CATEGORIES', message: 'No hay más categorías disponibles' });
+    io.to(roomCode).emit('no_categories', {});
     return;
   }
 

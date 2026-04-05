@@ -10,6 +10,7 @@ const useGameStore = create((set, get) => ({
   myPower: null,         // { roundPowerId, power }
   revealData: null,      // { targetPct, guesses, activePowers }
   gameOver: null,        // { winner, finalScores }
+  noCategories: false,
   categories: [],        // lobby categories list
   activePowers: [],      // powers activated this round (for UI display)
   submittedGuesses: [],  // { playerId, playerName, photoPath, guessPct } — real-time guesses
@@ -64,7 +65,7 @@ const useGameStore = create((set, get) => ({
   reset: () => set({
     game: null, players: [], myPlayer: null, round: null,
     category: null, myPower: null, revealData: null,
-    gameOver: null, categories: [], activePowers: [],
+    gameOver: null, noCategories: false, categories: [], activePowers: [],
   }),
 }));
 
