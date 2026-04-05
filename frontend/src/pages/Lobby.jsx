@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerAvatar, { getPlayerColor } from '../components/shared/PlayerAvatar';
 import RoomCode from '../components/shared/RoomCode';
@@ -15,6 +15,8 @@ const MODE_INFO = {
 export default function Lobby() {
   const { game, players, myPlayer, categories } = useGameStore();
   const [newCat, setNewCat]     = useState({ term: '', left: '', right: '' });
+  const [importMsg, setImportMsg] = useState('');
+  const fileRef = useRef();
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig]     = useState({
     mode: game?.mode || 'normal',
@@ -23,6 +25,9 @@ export default function Lobby() {
     win_condition: game?.win_condition || 'points',
     win_value: game?.win_value || 10,
     guess_time: game?.guess_time || 120,
+    score_bullseye: game?.score_bullseye ?? 4,
+    score_close:    game?.score_close    ?? 3,
+    score_near:     game?.score_near     ?? 2,
   });
 
   if (!game || !myPlayer) return null;
@@ -32,6 +37,26 @@ export default function Lobby() {
     if (!newCat.term || !newCat.left || !newCat.right) return;
     socket.emit('add_category', { gameId: game.id, term: newCat.term, left_extreme: newCat.left, right_extreme: newCat.right, playerId: myPlayer.id });
     setNewCat({ term: '', left: '', right: '' });
+  };
+
+  const importFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+      let ok = 0, skip = 0;
+      for (const line of lines) {
+        const parts = line.split(',').map(p => p.trim());
+        if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) { skip++; continue; }
+        socket.emit('add_category', { gameId: game.id, term: parts[0], left_extreme: parts[1], right_extreme: parts[2], playerId: myPlayer.id });
+        ok++;
+      }
+      setImportMsg(`${ok} categorías importadas${skip ? `, ${skip} filas inválidas` : ''}`);
+      setTimeout(() => setImportMsg(''), 4000);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const removeCategory = (catId) => {
@@ -184,7 +209,16 @@ export default function Lobby() {
                   <input value={newCat.left} onChange={e => setNewCat(p => ({ ...p, left: e.target.value }))} placeholder="Extremo izq." style={inputStyle} />
                   <input value={newCat.right} onChange={e => setNewCat(p => ({ ...p, right: e.target.value }))} placeholder="Extremo der." style={inputStyle} />
                 </div>
-                <Button onClick={addCategory} variant="secondary" size="sm">+ Agregar</Button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Button onClick={addCategory} variant="secondary" size="sm" style={{ flex: 1 }}>+ Agregar</Button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    title="Importar desde .txt"
+                    style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13 }}
+                  >📂</button>
+                </div>
+                <input ref={fileRef} type="file" accept=".txt,.csv" style={{ display: 'none' }} onChange={importFile} />
+                {importMsg && <div style={{ fontSize: 12, color: 'var(--c-green)', fontWeight: 600 }}>{importMsg}</div>}
               </div>
 
               {/* List */}
@@ -304,6 +338,22 @@ export default function Lobby() {
                         ))}
                       </div>
                       <input type="number" min={1} value={config.win_value} onChange={e => setConfig(c => ({ ...c, win_value: +e.target.value }))} placeholder="Valor" style={inputStyle} />
+
+                      <div style={labelStyle}>Puntos por zona 🎯</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        {[
+                          { key: 'score_bullseye', label: 'Bullseye' },
+                          { key: 'score_close',    label: 'Cerca' },
+                          { key: 'score_near',     label: 'Casi' },
+                        ].map(({ key, label }) => (
+                          <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span style={{ fontSize: 10, color: 'var(--c-muted)', textAlign: 'center' }}>{label}</span>
+                            <input type="number" min={1} max={99} value={config[key]}
+                              onChange={e => setConfig(c => ({ ...c, [key]: +e.target.value }))}
+                              style={{ ...inputStyle, textAlign: 'center', padding: '5px 4px' }} />
+                          </div>
+                        ))}
+                      </div>
 
                       <div style={labelStyle}>Tiempo de adivinación</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>

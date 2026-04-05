@@ -150,11 +150,13 @@ async function triggerReveal(io, socket, roundId) {
   const game = await getGame(round.game_id);
 
   let scoreResults;
+  const scoring = { bullseye: game.score_bullseye ?? 4, close: game.score_close ?? 3, near: game.score_near ?? 2 };
+
   if (game.mode === 'basta') {
-    scoreResults = resolveBasta(guesses, targetPct, activePowers);
+    scoreResults = resolveBasta(guesses, targetPct, activePowers, scoring);
   } else {
     scoreResults = guesses.map(g => {
-      const { delta, reason } = computeScore(parseFloat(g.guess_pct), targetPct, g.player_id, activePowers);
+      const { delta, reason } = computeScore(parseFloat(g.guess_pct), targetPct, g.player_id, activePowers, scoring);
       return { playerId: g.player_id, guessPct: parseFloat(g.guess_pct), delta, reason };
     });
   }

@@ -55,7 +55,7 @@ function computeCuartilesScore(guessPct, targetPct) {
  *
  * playerId: the player being scored
  */
-function computeScore(guessPct, targetPct, playerId, activePowers = []) {
+function computeScore(guessPct, targetPct, playerId, activePowers = [], scoring = { bullseye: 4, close: 3, near: 2 }) {
   const hasPower = (name, field = 'activatorId') =>
     activePowers.some(p => p.powerName === name && p[field] === playerId);
 
@@ -76,10 +76,10 @@ function computeScore(guessPct, targetPct, playerId, activePowers = []) {
 
   const distance = Math.abs(guessPct - targetPct);
 
-  // Hit zones
-  if (distance <= ZONE_BULLSEYE) return { delta: +4, reason: 'bullseye' };
-  if (distance <= ZONE_CLOSE)    return { delta: +3, reason: 'close' };
-  if (distance <= ZONE_NEAR)     return { delta: +2, reason: 'near' };
+  // Hit zones (use configurable scoring values)
+  if (distance <= ZONE_BULLSEYE) return { delta: +(scoring.bullseye ?? 4), reason: 'bullseye' };
+  if (distance <= ZONE_CLOSE)    return { delta: +(scoring.close    ?? 3), reason: 'close' };
+  if (distance <= ZONE_NEAR)     return { delta: +(scoring.near     ?? 2), reason: 'near' };
 
   // Miss
   if (hasEscudo) return { delta: 0, reason: 'miss_escudo' };
@@ -97,11 +97,11 @@ function computeScore(guessPct, targetPct, playerId, activePowers = []) {
  * guesses: sorted by submitted_at ASC → guesses[0] is the first submitter.
  * Returns array of { playerId, guessPct, delta, reason }
  */
-function resolveBasta(guesses, targetPct, activePowers = []) {
+function resolveBasta(guesses, targetPct, activePowers = [], scoring = { bullseye: 4, close: 3, near: 2 }) {
   if (!guesses.length) return [];
 
   const [first, ...rest] = guesses;
-  const firstResult = computeScore(first.guessPct, targetPct, first.player_id, activePowers);
+  const firstResult = computeScore(first.guessPct, targetPct, first.player_id, activePowers, scoring);
 
   const results = [{ playerId: first.player_id, guessPct: first.guessPct, ...firstResult }];
 

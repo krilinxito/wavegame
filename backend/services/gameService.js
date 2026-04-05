@@ -11,10 +11,11 @@ async function getGameByCode(code) {
   return rows[0] || null;
 }
 
-async function updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time }) {
+async function updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time, score_bullseye, score_close, score_near }) {
   await pool.execute(
-    'UPDATE games SET mode=?, range_min=?, range_max=?, win_condition=?, win_value=?, guess_time=? WHERE id=?',
-    [mode, range_min, range_max, win_condition, win_value, guess_time ?? 120, gameId]
+    'UPDATE games SET mode=?, range_min=?, range_max=?, win_condition=?, win_value=?, guess_time=?, score_bullseye=?, score_close=?, score_near=? WHERE id=?',
+    [mode, range_min, range_max, win_condition, win_value, guess_time ?? 120,
+     score_bullseye ?? 4, score_close ?? 3, score_near ?? 2, gameId]
   );
 }
 
