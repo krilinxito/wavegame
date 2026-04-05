@@ -4,7 +4,8 @@ import useGameStore from '../../store/gameStore';
 
 export default function Leaderboard({ compact = false }) {
   const { players, round } = useGameStore();
-  const sorted = [...players].filter(p => p.connected).sort((a, b) => b.score - a.score);
+  const sorted   = [...players].filter(p => p.connected && !p.is_spectator).sort((a, b) => b.score - a.score);
+  const spectators = players.filter(p => p.connected && p.is_spectator);
 
   return (
     <div style={{
@@ -43,6 +44,16 @@ export default function Leaderboard({ compact = false }) {
           </motion.div>
         );
       })}
+      {spectators.length > 0 && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--c-border)' }}>
+          {spectators.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0' }}>
+              <span style={{ fontSize: 11 }}>👁</span>
+              <span style={{ fontSize: 11, color: 'var(--c-muted)' }}>{p.display_name}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

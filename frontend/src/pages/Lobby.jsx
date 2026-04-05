@@ -45,8 +45,6 @@ export default function Lobby() {
 
   const startGame = () => {
     if (categories.length === 0) return alert('Agregá al menos una categoría antes de empezar');
-    const minPlayers = game.mode === 'teams' ? 4 : 2;
-    if (players.length < minPlayers) return alert(`Necesitás al menos ${minPlayers} jugadores para el modo ${MODE_INFO[game.mode]?.label}`);
     socket.emit('host_start_game', { gameId: game.id, playerId: myPlayer.id });
   };
 
@@ -71,62 +69,74 @@ export default function Lobby() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Teams picker — solo en modo teams */}
-            {game.mode === 'teams' && (
-              <div style={card}>
-                <div style={sectionTitle}>Equipos</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {[1, 2].map(teamNum => {
-                    const color = teamNum === 1 ? '#2a5a96' : '#b83820';
-                    const isMine = myPlayer.team === teamNum;
-                    const members = players.filter(p => p.team === teamNum);
-                    return (
-                      <div key={teamNum} style={{
-                        background: `${color}11`, border: `1px solid ${color}44`,
-                        borderRadius: 'var(--r-md)', padding: '10px 12px',
-                      }}>
-                        <div style={{ fontFamily: 'Fredoka One', fontSize: 15, color, marginBottom: 8 }}>
-                          Equipo {teamNum}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: 28 }}>
-                          {members.map(p => (
-                            <div key={p.id} style={{ fontSize: 13, fontWeight: p.id === myPlayer.id ? 700 : 400, color: 'var(--c-text)' }}>
-                              {p.display_name}{p.id === myPlayer.id ? ' (vos)' : ''}
-                            </div>
-                          ))}
-                          {members.length === 0 && (
-                            <div style={{ fontSize: 12, color: 'var(--c-muted)', fontStyle: 'italic' }}>Vacío</div>
+            {game.mode === 'teams' && (() => {
+              const PAIR_COLORS = ['#2a5a96','#b83820','#2a8052','#8a6020','#6a3090','#208a80'];
+              const teamNums = [...new Set(players.filter(p => p.team).map(p => p.team))].sort((a,b)=>a-b);
+              const maxTeam = teamNums.length > 0 ? Math.max(...teamNums) : 0;
+              const spectatorPlayers = players.filter(p => p.is_spectator);
+              const noTeamPlayers = players.filter(p => !p.team && !p.is_spectator);
+
+              return (
+                <div style={card}>
+                  <div style={sectionTitle}>Parejas</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {teamNums.map((teamNum, i) => {
+                      const color = PAIR_COLORS[i % PAIR_COLORS.length];
+                      const members = players.filter(p => p.team === teamNum);
+                      const isMine = myPlayer.team === teamNum;
+                      const isFull = members.filter(p => p.id !== myPlayer.id).length >= 2;
+                      return (
+                        <div key={teamNum} style={{ background: `${color}11`, border: `1px solid ${color}44`, borderRadius: 'var(--r-md)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ fontFamily: 'Fredoka One', fontSize: 13, color, minWidth: 24 }}>#{teamNum}</div>
+                          <div style={{ flex: 1, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {members.map(p => (
+                              <span key={p.id} style={{ fontSize: 13, fontWeight: p.id === myPlayer.id ? 700 : 400, color: 'var(--c-text)' }}>
+                                {p.display_name}{p.id === myPlayer.id ? ' (vos)' : ''}
+                              </span>
+                            ))}
+                            {members.length < 2 && <span style={{ fontSize: 12, color: 'var(--c-muted)', fontStyle: 'italic' }}>esperando pareja...</span>}
+                          </div>
+                          {!isMine && !isFull && (
+                            <button onClick={() => socket.emit('set_team', { team: teamNum })}
+                              style={{ padding: '4px 10px', background: color, color: '#fff', border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Nunito, sans-serif' }}>
+                              Unirme
+                            </button>
+                          )}
+                          {isMine && (
+                            <button onClick={() => socket.emit('set_team', { team: null })}
+                              style={{ padding: '4px 10px', background: 'transparent', color: 'var(--c-muted)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', fontSize: 11, fontFamily: 'Nunito, sans-serif' }}>
+                              Salir
+                            </button>
                           )}
                         </div>
-                        {!isMine && (
-                          <button
-                            onClick={() => socket.emit('set_team', { team: teamNum })}
-                            style={{
-                              marginTop: 10, width: '100%', padding: '5px 0',
-                              background: color, color: '#fff', fontWeight: 700, fontSize: 12,
-                              border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                              fontFamily: 'Nunito, sans-serif',
-                              boxShadow: 'var(--shadow-sm)',
-                            }}
-                          >
-                            Unirme
-                          </button>
-                        )}
-                        {isMine && (
-                          <div style={{ marginTop: 8, fontSize: 11, color, fontWeight: 700, textAlign: 'center' }}>
-                            ✓ Tu equipo
-                          </div>
-                        )}
+                      );
+                    })}
+
+                    {/* Nueva pareja */}
+                    {!myPlayer.team && !myPlayer.is_spectator && (
+                      <button onClick={() => socket.emit('set_team', { team: maxTeam + 1 })}
+                        style={{ padding: '8px', background: 'var(--c-surface2)', border: '1px dashed var(--c-border2)', borderRadius: 'var(--r-md)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13, fontFamily: 'Nunito, sans-serif' }}>
+                        + Nueva pareja
+                      </button>
+                    )}
+
+                    {/* Sin equipo */}
+                    {noTeamPlayers.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--c-muted)', marginTop: 2 }}>
+                        Sin pareja: {noTeamPlayers.map(p => p.display_name).join(', ')}
                       </div>
-                    );
-                  })}
-                </div>
-                {players.filter(p => !p.team).length > 0 && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--c-muted)' }}>
-                    Sin equipo: {players.filter(p => !p.team).map(p => p.display_name).join(', ')}
+                    )}
+
+                    {/* Espectadores */}
+                    {spectatorPlayers.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>
+                        👁 Especteando: {spectatorPlayers.map(p => p.display_name).join(', ')}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {/* Players */}
             <div style={card}>
@@ -144,7 +154,16 @@ export default function Lobby() {
                       <span style={{ fontWeight: 700, fontSize: 14 }}>{p.display_name}</span>
                       {p.id === myPlayer.id && <span style={{ fontSize: 11, color: 'var(--c-muted)', marginLeft: 6 }}>vos</span>}
                       {!!p.is_host && <span style={{ fontSize: 11, color: 'var(--c-yellow)', marginLeft: 6 }}>host</span>}
+                      {!!p.is_spectator && <span style={{ fontSize: 11, color: 'var(--c-muted)', marginLeft: 6 }}>👁 espectador</span>}
                     </div>
+                    {p.id === myPlayer.id && (
+                      <button
+                        onClick={() => socket.emit('toggle_spectator')}
+                        style={{ fontSize: 11, padding: '3px 8px', background: 'transparent', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontFamily: 'Nunito, sans-serif' }}
+                      >
+                        {myPlayer.is_spectator ? 'Jugar' : '👁 Spectate'}
+                      </button>
+                    )}
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: p.connected ? 'var(--c-green)' : 'var(--c-red)', flexShrink: 0 }} />
                   </motion.div>
                 ))}

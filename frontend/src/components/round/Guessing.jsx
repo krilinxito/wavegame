@@ -13,13 +13,14 @@ export default function Guessing() {
   const [submitted, setSubmitted] = useState(false);
 
   const isPsychic = round?.psychic_id === myPlayer?.id;
+  const isSpectator = !!myPlayer?.is_spectator;
   const isBlocked = activePowers.some(p => p.powerName === 'bloqueo' && p.effect?.targetId === myPlayer?.id);
 
   const cuartilesPower = activePowers.find(p => p.powerName === 'cuartiles' && p.activatorId === myPlayer?.id);
   const showQuartile = cuartilesPower?.effect?.quartile ?? null;
 
   const submitGuess = (pct) => {
-    if (submitted || isPsychic || isBlocked) return;
+    if (submitted || isPsychic || isBlocked || isSpectator) return;
     const finalPct = pct ?? guessPct;
     socket.emit('submit_guess', { roundId: round.id, guessPct: finalPct });
     setSubmitted(true);
@@ -71,12 +72,16 @@ export default function Guessing() {
         submittedGuesses={submittedGuesses}
         guessPct={guessPct}
         onGuessChange={setGuessPct}
-        showGuessHandle={!isPsychic && !submitted && !isBlocked}
+        showGuessHandle={!isPsychic && !submitted && !isBlocked && !isSpectator}
         showQuartile={showQuartile}
       />
 
       {isPsychic && (
         <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>Sos el Psychic — no podés adivinar</div>
+      )}
+
+      {isSpectator && (
+        <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>👁 Estás especteando esta ronda</div>
       )}
 
       {isBlocked && !isPsychic && (

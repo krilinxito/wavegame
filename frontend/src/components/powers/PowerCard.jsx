@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../shared/Modal';
 import Button from '../shared/Button';
@@ -28,7 +28,21 @@ export default function PowerCard() {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [used, setUsed] = useState(false);
 
-  if (!myPower || used || game?.mode === 'teams' || round?.status !== 'guessing') return null;
+  // Reset used state when a new power is offered (new round)
+  useEffect(() => { setUsed(false); setSelectedTarget(null); }, [myPower?.roundPowerId]);
+
+  if (game?.mode === 'teams' || round?.status !== 'guessing') return null;
+
+  // Mala suerte placeholder
+  if (!myPower || myPower.power === null) {
+    return (
+      <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50, background: 'var(--c-surface)', border: '1px solid var(--c-border2)', borderRadius: 16, padding: '10px 16px', fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 20 }}>🎲</span> Mala suerte, sin poder esta ronda
+      </div>
+    );
+  }
+
+  if (used) return null;
 
   const { roundPowerId, power } = myPower;
   const needsTarget = ['veneno', 'bloqueo', 'switch'].includes(power.name);
