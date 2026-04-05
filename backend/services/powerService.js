@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => require('crypto').randomUUID();
 const pool = require('../db');
 
 const POWER_IDS = [1, 2, 3, 4, 5]; // cuartiles, veneno, escudo, bloqueo, switch

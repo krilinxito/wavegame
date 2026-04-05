@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => require('crypto').randomUUID();
 const pool = require('../db');
 
 // POST /api/players/join — join or register in a game

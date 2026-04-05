@@ -3,7 +3,7 @@ const { getPlayersForGame, updatePlayerSocket } = require('../services/playerSer
 const { getGame, getGameByCode, updateGameConfig, startGame, rotatePsychic } = require('../services/gameService');
 const { createRound, getUnusedCategory, markCategoryUsed } = require('../services/roundService');
 const { offerPowers } = require('../services/powerService');
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => require('crypto').randomUUID();
 
 module.exports = function lobbyHandlers(io, socket) {
 

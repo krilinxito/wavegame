@@ -4,7 +4,7 @@ const { computeScore, resolveBasta } = require('../services/scoringService');
 const { getActivePowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
 const { checkWinCondition, getGame } = require('../services/gameService');
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => require('crypto').randomUUID();
 
 module.exports = function roundHandlers(io, socket) {
 

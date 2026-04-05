@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => require('crypto').randomUUID();
 const pool = require('../db');
 
 async function createRound(gameId, psychicId, roundNumber) {
