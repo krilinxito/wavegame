@@ -42,7 +42,11 @@ module.exports = function lobbyHandlers(io, socket) {
       socket.data.gameId = game.id;
       socket.data.roomCode = roomCode;
 
-      const players = await getPlayersForGame(game.id);
+      const allPlayers = await getPlayersForGame(game.id);
+      // In lobby, only show connected players; during game show everyone
+      const players = game.status === 'lobby'
+        ? allPlayers.filter(p => p.connected)
+        : allPlayers;
       const [categories] = await pool.execute(
         'SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE game_id=? ORDER BY created_at',
         [game.id]
