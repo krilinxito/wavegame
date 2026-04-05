@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { BACKEND } from '../config';
 import { motion } from 'framer-motion';
 import Button from '../components/shared/Button';
 
@@ -23,7 +24,7 @@ export default function Home({ onJoin }) {
     if (!photo) return null;
     const fd = new FormData();
     fd.append('photo', photo);
-    const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
+    const res = await fetch(`${BACKEND}/api/upload/photo`, { method: 'POST', body: fd });
     if (!res.ok) return null;
     return (await res.json()).path;
   };
@@ -32,7 +33,7 @@ export default function Home({ onJoin }) {
     if (!name.trim()) return setError('Ingresá tu nombre');
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/games', { method: 'POST' });
+      const res = await fetch(`${BACKEND}/api/games`, { method: 'POST' });
       const game = await res.json();
       const photoPath = await uploadPhoto();
       onJoin(game.room_code, game.id, name.trim(), photoPath);
@@ -45,7 +46,7 @@ export default function Home({ onJoin }) {
     if (!roomCode.trim()) return setError('Ingresá el código de sala');
     setLoading(true); setError('');
     try {
-      const res = await fetch(`/api/games/${roomCode.trim().toUpperCase()}`);
+      const res = await fetch(`${BACKEND}/api/games/${roomCode.trim().toUpperCase()}`);
       if (!res.ok) return setError('Sala no encontrada');
       const game = await res.json();
       const photoPath = await uploadPhoto();

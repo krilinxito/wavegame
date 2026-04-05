@@ -1,3 +1,5 @@
+import { BACKEND } from '../../config';
+
 const COLORS = [
   '#6c63ff', '#c94f4f', '#4a9e7f', '#c9a84c',
   '#4a7ec9', '#9c6cc9', '#4ab5c9', '#c96c4a',
@@ -27,7 +29,7 @@ export default function PlayerAvatar({ player, size = 40, showName = false, styl
         fontFamily: 'Fredoka One',
       }}>
         {player?.photo_path
-          ? <img src={`/uploads/${player.photo_path}`} alt={player.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ? <img src={`${BACKEND}/uploads/${player.photo_path}`} alt={player.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : initials
         }
       </div>

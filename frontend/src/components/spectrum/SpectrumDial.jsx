@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pctToXY, arcBandPath, pctToQuartile } from '../../utils/dialMath';
 import { getPlayerColor } from '../shared/PlayerAvatar';
+import { BACKEND } from '../../config';
 
 const R = 100;       // arc radius
 const TRACK_W = 14;  // track width
@@ -244,7 +245,7 @@ export default function SpectrumDial({
           const pos = pctToXY(g.guessPct, R + 20);
           const arcPt = pctToXY(g.guessPct, R + 2);
           const clipId = `cg-${g.playerId}`;
-          const photo = g.photoPath ? `/uploads/${g.photoPath}` : null;
+          const photo = g.photoPath ? `${BACKEND}/uploads/${g.photoPath}` : null;
           return (
             <motion.g
               key={g.playerId}
@@ -280,7 +281,7 @@ export default function SpectrumDial({
             const pos = pctToXY(g.guessPct, R + 18);
             const delta = g.scoreDelta;
             const clipId = `cr-${g.playerId}`;
-            const photo = player?.photo_path ? `/uploads/${player.photo_path}` : null;
+            const photo = player?.photo_path ? `${BACKEND}/uploads/${player.photo_path}` : null;
             const arcPt = pctToXY(g.guessPct, R + 2);
 
             return (
