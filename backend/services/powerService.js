@@ -7,16 +7,17 @@ const POWER_IDS = [1, 2, 3, 4, 5]; // cuartiles, veneno, escudo, bloqueo, switch
  * Assign one random power to each player for this round.
  * In teams mode, no powers are assigned.
  */
-async function offerPowers(roundId, playerIds, mode) {
+async function offerPowers(roundId, playerIds, mode, guaranteedIds = new Set()) {
   if (mode === 'teams') return {};
 
   const [powers] = await pool.execute('SELECT * FROM powers');
   const offers = {};
 
   for (const playerId of playerIds) {
-    // 25% chance of no power this round
-    if (Math.random() < 0.25) {
-      offers[playerId] = { roundPowerId: null, power: null };
+    const isFree = guaranteedIds.has(playerId);
+    // 25% chance of no power — skipped if player got bullseye last round
+    if (!isFree && Math.random() < 0.25) {
+      offers[playerId] = { roundPowerId: null, power: null, isFree: false };
       continue;
     }
     const power = powers[Math.floor(Math.random() * powers.length)];
@@ -25,7 +26,7 @@ async function offerPowers(roundId, playerIds, mode) {
       'INSERT INTO round_powers (id, round_id, player_id, power_id) VALUES (?, ?, ?, ?)',
       [id, roundId, playerId, power.id]
     );
-    offers[playerId] = { roundPowerId: id, power };
+    offers[playerId] = { roundPowerId: id, power, isFree };
   }
 
   return offers; // { playerId → { roundPowerId, power } }
@@ -35,7 +36,7 @@ async function offerPowers(roundId, playerIds, mode) {
  * Activate a power. Returns the effect payload to broadcast.
  * Deducts cost from player.score.
  */
-async function activatePower(roundPowerId, playerId, targetPlayerId = null) {
+async function activatePower(roundPowerId, playerId, targetPlayerId = null, isFree = false) {
   const [rows] = await pool.execute(
     `SELECT rp.*, p.name, p.cost, p.description
      FROM round_powers rp JOIN powers p ON rp.power_id = p.id
@@ -47,13 +48,13 @@ async function activatePower(roundPowerId, playerId, targetPlayerId = null) {
   const rp = rows[0];
   if (rp.activated) throw new Error('Power already used');
 
-  // Check player has enough points
-  const [playerRows] = await pool.execute('SELECT score FROM players WHERE id=?', [playerId]);
-  if (!playerRows.length) throw new Error('Player not found');
-  if (playerRows[0].score < rp.cost) throw new Error('INSUFFICIENT_POINTS');
-
-  // Deduct cost
-  await pool.execute('UPDATE players SET score = score - ? WHERE id=?', [rp.cost, playerId]);
+  // Check player has enough points (skip if free bullseye reward)
+  if (!isFree) {
+    const [playerRows] = await pool.execute('SELECT score FROM players WHERE id=?', [playerId]);
+    if (!playerRows.length) throw new Error('Player not found');
+    if (playerRows[0].score < rp.cost) throw new Error('INSUFFICIENT_POINTS');
+    await pool.execute('UPDATE players SET score = score - ? WHERE id=?', [rp.cost, playerId]);
+  }
 
   // Mark activated
   await pool.execute(

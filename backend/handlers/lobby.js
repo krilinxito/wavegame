@@ -295,7 +295,17 @@ async function startNextRound(io, roomCode, gameId, mode) {
 
   const players = await getPlayersForGame(gameId);
   const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected).map(p => p.id);
-  const powerOffers = await offerPowers(round.id, nonPsychicIds, mode);
+
+  // Players who got bullseye last round get a guaranteed power
+  const [bullseyeRows] = await pool.execute(
+    `SELECT sl.player_id FROM score_log sl
+     JOIN rounds r ON sl.round_id = r.id
+     WHERE sl.game_id=? AND sl.reason='bullseye' AND r.round_number=?`,
+    [gameId, game.current_round - 1]
+  );
+  const guaranteedIds = new Set(bullseyeRows.map(r => r.player_id));
+
+  const powerOffers = await offerPowers(round.id, nonPsychicIds, mode, guaranteedIds);
 
   const roundPublic = { ...round, target_pct: undefined };
   io.to(roomCode).emit('round_started', {

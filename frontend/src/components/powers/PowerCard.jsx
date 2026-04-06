@@ -44,7 +44,7 @@ export default function PowerCard() {
 
   if (used) return null;
 
-  const { roundPowerId, power } = myPower;
+  const { roundPowerId, power, isFree } = myPower;
   const needsTarget = ['veneno', 'bloqueo', 'switch'].includes(power.name);
   const color = POWER_COLORS[power.name] || '#7c3aed';
   const icon = POWER_ICONS[power.name] || '✨';
@@ -60,6 +60,7 @@ export default function PowerCard() {
     socket.emit('activate_power', {
       roundPowerId,
       targetPlayerId: selectedTarget || null,
+      isFree: !!isFree,
     });
     setUsed(true);
     setOpen(false);
@@ -94,8 +95,17 @@ export default function PowerCard() {
         >
           <span style={{ fontSize: 28 }}>{icon}</span>
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontFamily: 'Fredoka One', fontSize: 16 }}>{power.name}</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>Costo: {power.cost} pts · Toca para activar</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontFamily: 'Fredoka One', fontSize: 16 }}>{power.name}</span>
+              {isFree && (
+                <span style={{ background: '#fbbf24', color: '#000', fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '1px 6px', letterSpacing: 0.5 }}>
+                  🎯 GRATIS
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              {isFree ? '¡Bullseye! Sin costo · Toca para activar' : `Costo: ${power.cost} pts · Toca para activar`}
+            </div>
           </div>
         </motion.button>
       </motion.div>
@@ -104,11 +114,21 @@ export default function PowerCard() {
         <p style={{ color: 'var(--c-muted)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
           {power.description}
         </p>
-        <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
-          <span style={{ color: 'var(--c-muted)' }}>Costo: </span>
-          <span style={{ fontFamily: 'Fredoka One', color, fontSize: 18 }}>{power.cost} pts</span>
-          {' · '}
-          <span style={{ color: 'var(--c-muted)', fontSize: 12 }}>Se descuenta de tu puntaje actual</span>
+        <div style={{ background: isFree ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)', border: isFree ? '1px solid #fbbf2444' : 'none', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
+          {isFree ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>🎯</span>
+              <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>¡Poder gratis por bullseye!</span>
+              <span style={{ color: 'var(--c-muted)', fontSize: 12, textDecoration: 'line-through' }}>{power.cost} pts</span>
+            </span>
+          ) : (
+            <>
+              <span style={{ color: 'var(--c-muted)' }}>Costo: </span>
+              <span style={{ fontFamily: 'Fredoka One', color, fontSize: 18 }}>{power.cost} pts</span>
+              {' · '}
+              <span style={{ color: 'var(--c-muted)', fontSize: 12 }}>Se descuenta de tu puntaje actual</span>
+            </>
+          )}
         </div>
 
         {needsTarget && (

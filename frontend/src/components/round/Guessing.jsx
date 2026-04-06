@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SpectrumDial from '../spectrum/SpectrumDial';
 import Button from '../shared/Button';
@@ -40,6 +40,19 @@ export default function Guessing() {
   const nonPsychicPlayers = players.filter(p => p.id !== round?.psychic_id);
   const submittedCount = submittedGuesses.length;
 
+  // Spacebar triggers basta submit
+  useEffect(() => {
+    if (!isBasta) return;
+    const onKey = (e) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        submitGuess();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isBasta, submitted, isPsychic, isBlocked, isSpectator, guessPct]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
       <motion.div {...slideUp} style={{ textAlign: 'center', width: '100%' }}>
@@ -76,6 +89,47 @@ export default function Guessing() {
         showQuartile={showQuartile}
       />
 
+      {/* Basta arrival order */}
+      {isBasta && submittedGuesses.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 5 }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+            Orden de llegada
+          </div>
+          {(() => {
+            const firstTs = submittedGuesses[0]?.submittedAt ?? null;
+            return submittedGuesses.map((g, i) => {
+              const delta = (firstTs && g.submittedAt && i > 0) ? g.submittedAt - firstTs : null;
+              return (
+                <motion.div key={g.playerId}
+                  initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.05 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: i === 0 ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${i === 0 ? '#fbbf2444' : 'rgba(255,255,255,0.07)'}`,
+                    borderRadius: 10, padding: '7px 14px',
+                  }}
+                >
+                  <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: i === 0 ? '#fbbf24' : 'var(--c-muted)', minWidth: 24 }}>
+                    {i + 1}
+                  </span>
+                  <span style={{ fontWeight: 700, color: i === 0 ? '#fbbf24' : 'var(--c-text)', fontSize: 14 }}>
+                    {g.playerName}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, fontFamily: 'Fredoka One' }}>
+                    {i === 0
+                      ? <span style={{ color: '#fbbf24' }}>⚡ BASTA</span>
+                      : delta !== null && <span style={{ color: 'var(--c-muted)' }}>+{delta}ms</span>
+                    }
+                  </span>
+                </motion.div>
+              );
+            });
+          })()}
+        </motion.div>
+      )}
+
       {isPsychic && (
         <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>Sos el Psychic — no podés adivinar</div>
       )}
@@ -108,7 +162,7 @@ export default function Guessing() {
                 {isBasta ? '⚡ ¡BASTA! Confirmar' : 'Confirmar adivinanza'}
               </Button>
               <p style={{ color: 'var(--c-muted)', fontSize: 12 }}>
-                Arrastrá la aguja y confirmá tu posición
+                {isBasta ? 'Click o Espacio para cantar BASTA' : 'Arrastrá la aguja y confirmá tu posición'}
               </p>
             </motion.div>
           ) : (

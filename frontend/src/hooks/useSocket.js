@@ -94,11 +94,11 @@ export function useSocket() {
       });
     });
 
-    socket.on('guess_submitted', ({ roundId, playerId, playerName, photoPath }) => {
+    socket.on('guess_submitted', ({ roundId, playerId, playerName, photoPath, submittedAt }) => {
       // Only add to submittedGuesses if it's my team's active round
       const myRound = useGameStore.getState().round;
       if (!roundId || myRound?.id === roundId) {
-        store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct: null });
+        store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct: null, submittedAt });
       }
       // Track in teamRounds for sidebar status
       useGameStore.setState(state => {
@@ -122,7 +122,7 @@ export function useSocket() {
       });
     });
 
-    socket.on('guess_confirmed', ({ guessPct }) => {
+    socket.on('guess_confirmed', ({ guessPct, submittedAt }) => {
       const myPlayer = useGameStore.getState().myPlayer;
       if (!myPlayer) return;
       store.addSubmittedGuess({
@@ -130,11 +130,12 @@ export function useSocket() {
         playerName: myPlayer.display_name,
         photoPath: myPlayer.photo_path,
         guessPct,
+        submittedAt,
       });
     });
 
-    socket.on('power_offered', ({ roundPowerId, power }) => {
-      store.setMyPower({ roundPowerId, power });
+    socket.on('power_offered', ({ roundPowerId, power, isFree }) => {
+      store.setMyPower({ roundPowerId, power, isFree: !!isFree });
     });
 
     socket.on('power_activated', (data) => {

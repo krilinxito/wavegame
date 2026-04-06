@@ -76,9 +76,10 @@ module.exports = function roundHandlers(io, socket) {
         roundId, playerId, isFirst,
         playerName: playerRows[0]?.display_name,
         photoPath: playerRows[0]?.photo_path,
+        submittedAt: Date.now(),
       });
       // Send position only to the guesser as confirmation
-      socket.emit('guess_confirmed', { roundId, guessPct: pct });
+      socket.emit('guess_confirmed', { roundId, guessPct: pct, submittedAt: Date.now() });
 
       // Check if all eligible players guessed
       const allPlayers = await getPlayersForGame(round.game_id);

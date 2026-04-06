@@ -5,7 +5,7 @@ const { getRound } = require('../services/roundService');
 
 module.exports = function powerHandlers(io, socket) {
 
-  socket.on('activate_power', async ({ roundPowerId, targetPlayerId }) => {
+  socket.on('activate_power', async ({ roundPowerId, targetPlayerId, isFree }) => {
     try {
       const playerId = socket.data.playerId;
 
@@ -19,7 +19,7 @@ module.exports = function powerHandlers(io, socket) {
         return socket.emit('error', { code: 'WRONG_PHASE', message: 'Solo podés usar poderes durante la fase de adivinación' });
       }
 
-      const effect = await activatePower(roundPowerId, playerId, targetPlayerId || null);
+      const effect = await activatePower(roundPowerId, playerId, targetPlayerId || null, !!isFree);
 
       let broadcastEffect = {};
 
