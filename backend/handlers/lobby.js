@@ -189,6 +189,7 @@ module.exports = function lobbyHandlers(io, socket) {
       await pool.execute("UPDATE games SET status='lobby', current_round=0, psychic_id=NULL WHERE id=?", [gameId]);
       await pool.execute('UPDATE players SET score=0 WHERE game_id=?', [gameId]);
       await pool.execute('UPDATE categories SET used=FALSE WHERE game_id=?', [gameId]);
+      await pool.execute('DELETE FROM rounds WHERE game_id=?', [gameId]);
 
       const game = await getGame(gameId);
       const players = await getPlayersForGame(game.id);
@@ -349,8 +350,10 @@ async function startTeamsRound(io, roomCode, gameId) {
     }
     await markCategoryUsed(category.id);
 
-    const teamPlayers = allPlayers.filter(p => p.team === teamNum && !p.is_spectator && p.connected);
-    if (!teamPlayers.length) continue;
+    // All team members for rotation (ignoring connected status so it stays fair)
+    const allTeamPlayers = allPlayers.filter(p => p.team === teamNum && !p.is_spectator);
+    const connectedTeamPlayers = allTeamPlayers.filter(p => p.connected);
+    if (!allTeamPlayers.length) continue;
 
     // Rotate psychic within team based on last round history
     const [lastRound] = await pool.execute(
@@ -360,14 +363,14 @@ async function startTeamsRound(io, roomCode, gameId) {
     const lastPsychicId = lastRound[0]?.psychic_id ?? null;
     let psychic;
     if (!lastPsychicId) {
-      psychic = teamPlayers[0];
+      psychic = allTeamPlayers[0];
     } else {
-      const idx = teamPlayers.findIndex(p => p.id === lastPsychicId);
-      psychic = teamPlayers[(idx + 1) % teamPlayers.length];
+      const idx = allTeamPlayers.findIndex(p => p.id === lastPsychicId);
+      psychic = allTeamPlayers[(idx + 1) % allTeamPlayers.length];
     }
 
     const round = await createRound(gameId, psychic.id, newRoundNumber, teamNum);
-    const nonPsychicIds = teamPlayers.filter(p => p.id !== psychic.id).map(p => p.id);
+    const nonPsychicIds = connectedTeamPlayers.filter(p => p.id !== psychic.id).map(p => p.id);
     const powerOffers = await offerPowers(round.id, nonPsychicIds, 'teams');
 
     teamRoundsData.push({ round, category, psychic, teamNum, powerOffers });
