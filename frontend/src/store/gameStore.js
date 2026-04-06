@@ -14,6 +14,9 @@ const useGameStore = create((set, get) => ({
   categories: [],        // lobby categories list
   activePowers: [],      // powers activated this round (for UI display)
   submittedGuesses: [],  // { playerId, playerName, photoPath, guessPct } — real-time guesses
+  // Teams mode parallel rounds
+  teamRounds: {},        // { [teamNum]: { round, category, revealData, submittedGuesses } }
+  allTeamRoundsDone: false,
 
   // Actions
   setGame: (game) => set({ game }),
@@ -60,12 +63,14 @@ const useGameStore = create((set, get) => ({
   clearRound: () => set({
     round: null, category: null, myPower: null,
     revealData: null, activePowers: [], submittedGuesses: [],
+    teamRounds: {}, allTeamRoundsDone: false,
   }),
 
   reset: () => set({
     game: null, players: [], myPlayer: null, round: null,
     category: null, myPower: null, revealData: null,
     gameOver: null, noCategories: false, categories: [], activePowers: [],
+    teamRounds: {}, allTeamRoundsDone: false,
   }),
 }));
 

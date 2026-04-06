@@ -11,6 +11,7 @@ async function run() {
     'ALTER TABLE games ADD COLUMN IF NOT EXISTS score_bullseye INT NOT NULL DEFAULT 4',
     'ALTER TABLE games ADD COLUMN IF NOT EXISTS score_close INT NOT NULL DEFAULT 3',
     'ALTER TABLE games ADD COLUMN IF NOT EXISTS score_near INT NOT NULL DEFAULT 2',
+    'ALTER TABLE rounds ADD COLUMN IF NOT EXISTS team_num TINYINT NULL',
   ];
   for (const sql of migrations) {
     await c.execute(sql);

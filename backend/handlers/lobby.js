@@ -268,24 +268,23 @@ async function getPlayerFromSocket(playerId) {
 }
 
 async function startNextRound(io, roomCode, gameId, mode) {
+  if (mode === 'teams') {
+    return startTeamsRound(io, roomCode, gameId);
+  }
+
   const psychic = await rotatePsychic(gameId);
   if (!psychic) return;
 
   const game = await getGame(gameId);
   const category = await getUnusedCategory(gameId);
   if (!category) {
-    // End game: winner is the player with most points
     const allPlayers = await getPlayersForGame(gameId);
     const active = allPlayers.filter(p => !p.is_spectator);
     const sorted = [...active].sort((a, b) => b.score - a.score);
-    const winner = sorted[0] || null;
     await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
     io.to(roomCode).emit('game_over', {
-      winner,
-      winnerTeam: null,
-      teamScore: null,
-      finalScores: sorted,
-      reason: 'no_categories',
+      winner: sorted[0] || null, winnerTeam: null, teamScore: null,
+      finalScores: sorted, reason: 'no_categories',
     });
     return;
   }
@@ -297,31 +296,107 @@ async function startNextRound(io, roomCode, gameId, mode) {
   const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected).map(p => p.id);
   const powerOffers = await offerPowers(round.id, nonPsychicIds, mode);
 
-  // Broadcast round_started to all (without target)
   const roundPublic = { ...round, target_pct: undefined };
   io.to(roomCode).emit('round_started', {
     round: roundPublic,
     category: {
-      id: category.id,
-      term: category.term,
-      left_extreme: category.left_extreme,
-      right_extreme: category.right_extreme,
+      id: category.id, term: category.term,
+      left_extreme: category.left_extreme, right_extreme: category.right_extreme,
       created_by: category.created_by,
     },
     psychicName: psychic.display_name,
   });
 
-  // Send target_pct only to psychic's socket
   const [psychicRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [psychic.id]);
   if (psychicRows[0]?.socket_id) {
     io.to(psychicRows[0].socket_id).emit('psychic_target', { roundId: round.id, targetPct: parseFloat(round.target_pct) });
   }
 
-  // Send power offers individually
   for (const [playerId, offer] of Object.entries(powerOffers)) {
     const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
     if (pRows[0]?.socket_id) {
       io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power });
+    }
+  }
+}
+
+async function startTeamsRound(io, roomCode, gameId) {
+  const game = await getGame(gameId);
+  const allPlayers = await getPlayersForGame(gameId);
+
+  const teamNums = [...new Set(
+    allPlayers.filter(p => p.team && !p.is_spectator).map(p => p.team)
+  )].sort((a, b) => a - b);
+
+  if (!teamNums.length) return;
+
+  const newRoundNumber = game.current_round + 1;
+  await pool.execute('UPDATE games SET current_round=? WHERE id=?', [newRoundNumber, gameId]);
+
+  const teamRoundsData = [];
+
+  for (const teamNum of teamNums) {
+    const category = await getUnusedCategory(gameId);
+    if (!category) {
+      const active = allPlayers.filter(p => !p.is_spectator);
+      const sorted = [...active].sort((a, b) => b.score - a.score);
+      await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+      io.to(roomCode).emit('game_over', {
+        winner: sorted[0] || null, winnerTeam: null, teamScore: null,
+        finalScores: sorted, reason: 'no_categories',
+      });
+      return;
+    }
+    await markCategoryUsed(category.id);
+
+    const teamPlayers = allPlayers.filter(p => p.team === teamNum && !p.is_spectator && p.connected);
+    if (!teamPlayers.length) continue;
+
+    // Rotate psychic within team based on last round history
+    const [lastRound] = await pool.execute(
+      'SELECT psychic_id FROM rounds WHERE game_id=? AND team_num=? ORDER BY round_number DESC LIMIT 1',
+      [gameId, teamNum]
+    );
+    const lastPsychicId = lastRound[0]?.psychic_id ?? null;
+    let psychic;
+    if (!lastPsychicId) {
+      psychic = teamPlayers[0];
+    } else {
+      const idx = teamPlayers.findIndex(p => p.id === lastPsychicId);
+      psychic = teamPlayers[(idx + 1) % teamPlayers.length];
+    }
+
+    const round = await createRound(gameId, psychic.id, newRoundNumber, teamNum);
+    const nonPsychicIds = teamPlayers.filter(p => p.id !== psychic.id).map(p => p.id);
+    const powerOffers = await offerPowers(round.id, nonPsychicIds, 'teams');
+
+    teamRoundsData.push({ round, category, psychic, teamNum, powerOffers });
+  }
+
+  // Broadcast all team rounds to everyone
+  const roundsPublic = teamRoundsData.map(({ round, category, psychic, teamNum }) => ({
+    teamNum,
+    round: { ...round, target_pct: undefined },
+    category: {
+      id: category.id, term: category.term,
+      left_extreme: category.left_extreme, right_extreme: category.right_extreme,
+      created_by: category.created_by,
+    },
+    psychicName: psychic.display_name,
+  }));
+  io.to(roomCode).emit('team_rounds_started', { teamRounds: roundsPublic });
+
+  // Send targets and power offers individually
+  for (const { round, psychic, powerOffers } of teamRoundsData) {
+    const [psychicRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [psychic.id]);
+    if (psychicRows[0]?.socket_id) {
+      io.to(psychicRows[0].socket_id).emit('psychic_target', { roundId: round.id, targetPct: parseFloat(round.target_pct) });
+    }
+    for (const [playerId, offer] of Object.entries(powerOffers)) {
+      const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
+      if (pRows[0]?.socket_id) {
+        io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power });
+      }
     }
   }
 }

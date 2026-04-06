@@ -47,7 +47,8 @@ export default function Revealing() {
 
   const { targetPct, activePowers } = revealData;
   const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
-  const sorted = [...guesses].filter(g => g.guessPct !== null).sort((a, b) => b.scoreDelta - a.scoreDelta);
+  // Exclude the psychic's scoring entry (shown separately); keep everyone else including basta non-guessers (guessPct null)
+  const sorted = [...guesses].filter(g => g.playerId !== round?.psychic_id).sort((a, b) => b.scoreDelta - a.scoreDelta);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>

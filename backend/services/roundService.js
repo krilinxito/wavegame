@@ -1,15 +1,23 @@
 const uuidv4 = () => require('crypto').randomUUID();
 const pool = require('../db');
 
-async function createRound(gameId, psychicId, roundNumber) {
+async function createRound(gameId, psychicId, roundNumber, teamNum = null) {
   const id = uuidv4();
   const targetPct = Math.random().toFixed(4);
   await pool.execute(
-    'INSERT INTO rounds (id, game_id, round_number, psychic_id, target_pct) VALUES (?, ?, ?, ?, ?)',
-    [id, gameId, roundNumber, psychicId, targetPct]
+    'INSERT INTO rounds (id, game_id, round_number, psychic_id, target_pct, team_num) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, gameId, roundNumber, psychicId, targetPct, teamNum]
   );
   const [rows] = await pool.execute('SELECT * FROM rounds WHERE id = ?', [id]);
   return rows[0];
+}
+
+async function getRoundsForRoundNumber(gameId, roundNumber) {
+  const [rows] = await pool.execute(
+    'SELECT * FROM rounds WHERE game_id=? AND round_number=?',
+    [gameId, roundNumber]
+  );
+  return rows;
 }
 
 async function getRound(roundId) {
@@ -75,6 +83,6 @@ async function markCategoryUsed(categoryId) {
 }
 
 module.exports = {
-  createRound, getRound, setClue, getGuesses, submitGuess,
+  createRound, getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess,
   saveScoreDeltas, markRevealed, markDone, getUnusedCategory, markCategoryUsed,
 };

@@ -29,22 +29,97 @@ export function useSocket() {
       store.setRevealData(null);
       store.setMyPower(null);
       store.setGameOver(null);
-      useGameStore.setState({ activePowers: [], submittedGuesses: [] });
+      useGameStore.setState({ activePowers: [], submittedGuesses: [], teamRounds: {}, allTeamRoundsDone: false });
+    });
+
+    socket.on('team_rounds_started', ({ teamRounds }) => {
+      const myPlayer = useGameStore.getState().myPlayer;
+      const myTeamNum = myPlayer?.team ?? null;
+
+      const trMap = {};
+      for (const tr of teamRounds) {
+        trMap[tr.teamNum] = {
+          round: { ...tr.round, psychicName: tr.psychicName },
+          category: tr.category,
+          revealData: null,
+          submittedGuesses: [],
+        };
+      }
+
+      const myTeamData = myTeamNum != null ? trMap[myTeamNum] : null;
+      useGameStore.setState({
+        teamRounds: trMap,
+        round: myTeamData?.round ?? null,
+        category: myTeamData?.category ?? null,
+        revealData: null,
+        myPower: null,
+        gameOver: null,
+        activePowers: [],
+        submittedGuesses: [],
+        allTeamRoundsDone: false,
+      });
     });
 
     socket.on('psychic_target', ({ roundId, targetPct }) => {
       const cur = useGameStore.getState().round;
-      if (cur) store.setRound({ ...cur, targetPct });
+      if (cur?.id === roundId) store.setRound({ ...cur, targetPct });
+      // Also update teamRounds if present
+      useGameStore.setState(state => {
+        const entries = Object.entries(state.teamRounds);
+        if (!entries.length) return {};
+        const updated = {};
+        for (const [tn, tr] of entries) {
+          updated[tn] = tr.round?.id === roundId
+            ? { ...tr, round: { ...tr.round, targetPct } }
+            : tr;
+        }
+        return { teamRounds: updated };
+      });
     });
 
-    socket.on('clue_submitted', ({ clue }) => {
+    socket.on('clue_submitted', ({ roundId, clue }) => {
       const cur = useGameStore.getState().round;
-      if (cur) store.setRound({ ...cur, clue, status: 'guessing' });
+      if (cur?.id === roundId) store.setRound({ ...cur, clue, status: 'guessing' });
+      // Update other team's round if in teams mode
+      useGameStore.setState(state => {
+        const entries = Object.entries(state.teamRounds);
+        if (!entries.length) return {};
+        const updated = {};
+        for (const [tn, tr] of entries) {
+          updated[tn] = tr.round?.id === roundId
+            ? { ...tr, round: { ...tr.round, clue, status: 'guessing' } }
+            : tr;
+        }
+        return { teamRounds: updated };
+      });
     });
 
-    socket.on('guess_submitted', ({ playerId, playerName, photoPath }) => {
-      // No guessPct — positions hidden until reveal
-      store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct: null });
+    socket.on('guess_submitted', ({ roundId, playerId, playerName, photoPath }) => {
+      // Only add to submittedGuesses if it's my team's active round
+      const myRound = useGameStore.getState().round;
+      if (!roundId || myRound?.id === roundId) {
+        store.addSubmittedGuess({ playerId, playerName, photoPath, guessPct: null });
+      }
+      // Track in teamRounds for sidebar status
+      useGameStore.setState(state => {
+        const entries = Object.entries(state.teamRounds);
+        if (!entries.length) return {};
+        const updated = {};
+        for (const [tn, tr] of entries) {
+          if (tr.round?.id === roundId) {
+            updated[tn] = {
+              ...tr,
+              submittedGuesses: [
+                ...tr.submittedGuesses.filter(g => g.playerId !== playerId),
+                { playerId, playerName, photoPath, guessPct: null },
+              ],
+            };
+          } else {
+            updated[tn] = tr;
+          }
+        }
+        return { teamRounds: updated };
+      });
     });
 
     socket.on('guess_confirmed', ({ guessPct }) => {
@@ -74,9 +149,33 @@ export function useSocket() {
       }
     });
 
-    socket.on('round_revealed', ({ roundId, targetPct, guesses, activePowers }) => {
-      store.setRound(r => r ? { ...r, status: 'revealed' } : r);
-      store.setRevealData({ targetPct, guesses, activePowers });
+    socket.on('round_revealed', ({ roundId, teamNum, targetPct, guesses, activePowers }) => {
+      const revealPayload = { targetPct, guesses, activePowers };
+      const myPlayer = useGameStore.getState().myPlayer;
+      const isMyTeam = teamNum == null || myPlayer?.team === teamNum;
+
+      if (isMyTeam) {
+        useGameStore.setState(state => ({
+          round: state.round ? { ...state.round, status: 'revealed' } : state.round,
+          revealData: revealPayload,
+        }));
+      }
+
+      // Update teamRounds map
+      if (teamNum != null) {
+        useGameStore.setState(state => ({
+          teamRounds: {
+            ...state.teamRounds,
+            [teamNum]: state.teamRounds[teamNum]
+              ? { ...state.teamRounds[teamNum], revealData: revealPayload, round: { ...state.teamRounds[teamNum].round, status: 'revealed' } }
+              : state.teamRounds[teamNum],
+          },
+        }));
+      }
+    });
+
+    socket.on('all_teams_round_done', () => {
+      useGameStore.setState({ allTeamRoundsDone: true });
     });
 
     socket.on('scores_updated', ({ players }) => {
@@ -105,6 +204,7 @@ export function useSocket() {
         revealData: null, gameOver: null, noCategories: false,
         activePowers: [], submittedGuesses: [],
         categories: categories || [],
+        teamRounds: {}, allTeamRoundsDone: false,
       });
     });
 
@@ -124,6 +224,7 @@ export function useSocket() {
       socket.off('category_added');
       socket.off('category_removed');
       socket.off('round_started');
+      socket.off('team_rounds_started');
       socket.off('psychic_target');
       socket.off('clue_submitted');
       socket.off('power_offered');
@@ -132,6 +233,7 @@ export function useSocket() {
       socket.off('guess_submitted');
       socket.off('guess_confirmed');
       socket.off('round_revealed');
+      socket.off('all_teams_round_done');
       socket.off('scores_updated');
       socket.off('game_over');
       socket.off('no_categories');

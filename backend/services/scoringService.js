@@ -101,19 +101,21 @@ function resolveBasta(guesses, targetPct, activePowers = [], scoring = { bullsey
   if (!guesses.length) return [];
 
   const [first, ...rest] = guesses;
-  const firstResult = computeScore(first.guessPct, targetPct, first.player_id, activePowers, scoring);
+  // DB returns snake_case columns (guess_pct, player_id)
+  const firstPct = parseFloat(first.guess_pct);
+  const firstResult = computeScore(firstPct, targetPct, first.player_id, activePowers, scoring);
 
-  const results = [{ playerId: first.player_id, guessPct: first.guessPct, ...firstResult }];
+  const results = [{ playerId: first.player_id, guessPct: firstPct, ...firstResult }];
 
   if (firstResult.delta > 0) {
-    // First submitter hit — everyone else gets 0
+    // First submitter hit — anyone else who somehow also guessed gets 0
     for (const g of rest) {
-      results.push({ playerId: g.player_id, guessPct: g.guessPct, delta: 0, reason: 'basta_not_first' });
+      results.push({ playerId: g.player_id, guessPct: parseFloat(g.guess_pct), delta: 0, reason: 'basta_not_first' });
     }
   } else {
-    // First submitter missed — everyone else +1
+    // First submitter missed — any other submitters also get +1
     for (const g of rest) {
-      results.push({ playerId: g.player_id, guessPct: g.guessPct, delta: +1, reason: 'basta_others_win' });
+      results.push({ playerId: g.player_id, guessPct: parseFloat(g.guess_pct), delta: +1, reason: 'basta_others_win' });
     }
   }
 

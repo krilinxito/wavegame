@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { getRound, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone } = require('../services/roundService');
+const { getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone } = require('../services/roundService');
 const { computeScore, resolveBasta } = require('../services/scoringService');
 const { getActivePowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
@@ -33,6 +33,14 @@ module.exports = function roundHandlers(io, socket) {
       if (!round) return socket.emit('error', { code: 'NOT_FOUND', message: 'Ronda no encontrada' });
       if (round.status !== 'guessing') return socket.emit('error', { code: 'WRONG_PHASE', message: 'No es la fase de adivinanza' });
       if (round.psychic_id === playerId) return socket.emit('error', { code: 'PSYCHIC_CANT_GUESS', message: 'El psychic no puede adivinar' });
+
+      // Teams mode: only players on the same team can guess this round
+      if (round.team_num) {
+        const [playerTeamRow] = await pool.execute('SELECT team FROM players WHERE id=?', [playerId]);
+        if (playerTeamRow[0]?.team !== round.team_num) {
+          return socket.emit('error', { code: 'WRONG_TEAM', message: 'Esta ronda no es de tu equipo' });
+        }
+      }
 
       // Validate guess range
       const pct = parseFloat(guessPct);
@@ -74,7 +82,9 @@ module.exports = function roundHandlers(io, socket) {
 
       // Check if all eligible players guessed
       const allPlayers = await getPlayersForGame(round.game_id);
-      const eligible = allPlayers.filter(p => p.id !== round.psychic_id && p.connected && !p.is_spectator);
+      const eligible = round.team_num
+        ? allPlayers.filter(p => p.team === round.team_num && p.id !== round.psychic_id && p.connected && !p.is_spectator)
+        : allPlayers.filter(p => p.id !== round.psychic_id && p.connected && !p.is_spectator);
       const [guesses] = await pool.execute('SELECT player_id FROM guesses WHERE round_id=?', [roundId]);
       const guessedIds = new Set(guesses.map(g => g.player_id));
 
@@ -154,6 +164,16 @@ async function triggerReveal(io, socket, roundId) {
 
   if (game.mode === 'basta') {
     scoreResults = resolveBasta(guesses, targetPct, activePowers, scoring);
+    // If the first guesser missed, give +1 to all eligible players who didn't guess
+    if (scoreResults.length > 0 && scoreResults[0].delta <= 0) {
+      const allPlayers = await getPlayersForGame(round.game_id);
+      const scoredIds = new Set(scoreResults.map(r => r.playerId));
+      for (const p of allPlayers) {
+        if (!scoredIds.has(p.id) && p.id !== round.psychic_id && !p.is_spectator) {
+          scoreResults.push({ playerId: p.id, guessPct: null, delta: +1, reason: 'basta_others_win' });
+        }
+      }
+    }
   } else {
     scoreResults = guesses.map(g => {
       const { delta, reason } = computeScore(parseFloat(g.guess_pct), targetPct, g.player_id, activePowers, scoring);
@@ -210,13 +230,23 @@ async function triggerReveal(io, socket, roundId) {
 
   io.to(socket.data.roomCode).emit('round_revealed', {
     roundId,
+    teamNum: round.team_num ?? null,
     targetPct,
     guesses: guessesForReveal,
     activePowers,
   });
 
+  // In teams mode, only do scores/win check when ALL team rounds for this round_number are done
+  if (round.team_num) {
+    const teamRounds = await getRoundsForRoundNumber(round.game_id, round.round_number);
+    const allDone = teamRounds.every(r => r.status === 'done');
+    if (!allDone) return; // Wait for other teams
+  }
+
   setTimeout(async () => {
-    io.to(socket.data.roomCode).emit('scores_updated', { players });
+    const updatedPlayers = await getPlayersForGame(round.game_id);
+    io.to(socket.data.roomCode).emit('all_teams_round_done', {});
+    io.to(socket.data.roomCode).emit('scores_updated', { players: updatedPlayers });
 
     const winResult = await checkWinCondition(round.game_id);
     if (winResult.won) {
@@ -224,7 +254,7 @@ async function triggerReveal(io, socket, roundId) {
         winner: winResult.winner,
         winnerTeam: winResult.winnerTeam ?? null,
         teamScore: winResult.teamScore ?? null,
-        finalScores: players.sort((a, b) => b.score - a.score),
+        finalScores: updatedPlayers.sort((a, b) => b.score - a.score),
       });
     }
   }, 500);

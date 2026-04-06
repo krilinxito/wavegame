@@ -12,6 +12,77 @@ import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
 
+const TEAM_COLORS = ['#6c63ff', '#f97316', '#10b981', '#ef4444', '#fbbf24'];
+const teamColor = (n) => TEAM_COLORS[(n - 1) % TEAM_COLORS.length];
+
+function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone }) {
+  const otherTeams = Object.entries(teamRounds).filter(([tn]) => parseInt(tn) !== myTeamNum);
+  if (!otherTeams.length) return null;
+
+  const phaseLabel = (round) => {
+    if (!round) return '—';
+    if (round.status === 'clue_giving') return '🧠 Dando pista…';
+    if (round.status === 'guessing') return '🎯 Adivinando…';
+    if (round.status === 'revealed' || round.status === 'done') return '✅ Listo';
+    return round.status;
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+        Otros equipos
+      </div>
+      {otherTeams.map(([tn, tr]) => {
+        const teamNum = parseInt(tn);
+        const color = teamColor(teamNum);
+        const teamPlayers = players.filter(p => p.team === teamNum && !p.is_spectator);
+        const guessCount = tr.submittedGuesses?.filter(g => g.guessPct !== null || g.playerId).length ?? 0;
+        const eligibleCount = teamPlayers.filter(p => tr.round && p.id !== tr.round.psychic_id).length;
+        return (
+          <div key={tn} style={{
+            background: `${color}11`, border: `1px solid ${color}33`,
+            borderRadius: 10, padding: '10px 12px', marginBottom: 6,
+          }}>
+            <div style={{ fontWeight: 700, color, fontSize: 13, marginBottom: 4 }}>
+              Equipo {teamNum}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--c-muted)', marginBottom: 4 }}>
+              {phaseLabel(tr.round)}
+            </div>
+            {tr.round?.status === 'guessing' && (
+              <div style={{ fontSize: 11, color: 'var(--c-muted)' }}>
+                {guessCount}/{eligibleCount} adivinaron
+              </div>
+            )}
+            {tr.round?.clue && tr.round.status !== 'clue_giving' && (
+              <div style={{ fontSize: 11, color, fontStyle: 'italic', marginTop: 2 }}>
+                "{tr.round.clue}"
+              </div>
+            )}
+            {tr.revealData && (
+              <div style={{ fontSize: 11, color: 'var(--c-muted)', marginTop: 2 }}>
+                {tr.revealData.guesses.filter(g => g.guessPct !== null).map(g => {
+                  const p = players.find(pl => pl.id === g.playerId);
+                  return (
+                    <span key={g.playerId} style={{ marginRight: 6, color: g.scoreDelta > 0 ? '#10b981' : '#ef4444' }}>
+                      {p?.display_name}: {g.scoreDelta >= 0 ? `+${g.scoreDelta}` : g.scoreDelta}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {allTeamRoundsDone && (
+        <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textAlign: 'center', marginTop: 4 }}>
+          ✅ Todos los equipos terminaron
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GameOver({ gameOver, myPlayer, isHost, returnToLobby }) {
   const color = getPlayerColor(gameOver.winner?.id);
   const isWinner = gameOver.winner?.id === myPlayer?.id;
@@ -61,10 +132,12 @@ function GameOver({ gameOver, myPlayer, isHost, returnToLobby }) {
 }
 
 export default function Game() {
-  const { round, game, myPlayer, players, gameOver, noCategories, revealData } = useGameStore();
+  const { round, game, myPlayer, players, gameOver, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
   if (!game || !myPlayer) return null;
 
   const isHost = !!myPlayer.is_host;
+  const isTeamsMode = game.mode === 'teams';
+  const myTeamNum = myPlayer.team ?? null;
 
   const advanceRound  = () => socket.emit('next_round',      { gameId: game.id });
   const requestReveal = () => socket.emit('request_reveal',  { roundId: round?.id });
@@ -89,16 +162,35 @@ export default function Game() {
     );
   }
 
-  // Waiting
+  // Waiting / spectator
   if (!round) {
+    const hasTeamActivity = Object.keys(teamRounds).length > 0;
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Preparando ronda...</div>
+      <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 210px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+          {hasTeamActivity
+            ? <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Mirando la partida… 👁</div>
+            : <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Preparando ronda...</div>
+          }
+        </div>
+        <div style={{ padding: '20px 14px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
+          {isTeamsMode && (
+            <OtherTeamsStatus
+              teamRounds={teamRounds}
+              myTeamNum={null}
+              players={players}
+              allTeamRoundsDone={allTeamRoundsDone}
+            />
+          )}
+          <Leaderboard compact />
+        </div>
       </div>
     );
   }
 
-  const isRevealed = !!(revealData || ['revealing','scoring','done'].includes(round.status));
+  const isRevealed = !!(revealData || ['revealing','scoring','done','revealed'].includes(round?.status));
+  // In teams mode, "next round" requires all teams to be done
+  const canAdvanceRound = isRevealed && (!isTeamsMode || allTeamRoundsDone);
 
   return (
     <div style={{
@@ -141,11 +233,18 @@ export default function Game() {
           {isRevealed && (
             <motion.div key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <Revealing />
-              {isHost && (
+              {isHost && canAdvanceRound && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
                   style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}
                 >
                   <Button onClick={advanceRound}>Siguiente ronda</Button>
+                </motion.div>
+              )}
+              {isHost && isTeamsMode && !allTeamRoundsDone && isRevealed && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                  style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}
+                >
+                  Esperando que el otro equipo termine…
                 </motion.div>
               )}
             </motion.div>
@@ -160,7 +259,15 @@ export default function Game() {
       </div>
 
       {/* Sidebar */}
-      <div style={{ padding: '20px 14px', borderLeft: '1px solid var(--c-border)' }}>
+      <div style={{ padding: '20px 14px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
+        {isTeamsMode && (
+          <OtherTeamsStatus
+            teamRounds={teamRounds}
+            myTeamNum={myTeamNum}
+            players={players}
+            allTeamRoundsDone={allTeamRoundsDone}
+          />
+        )}
         <Leaderboard compact />
       </div>
 
