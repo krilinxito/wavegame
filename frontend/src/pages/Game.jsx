@@ -83,9 +83,15 @@ function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone })
   );
 }
 
-function GameOver({ gameOver, myPlayer, isHost, returnToLobby }) {
-  const color = getPlayerColor(gameOver.winner?.id);
-  const isWinner = gameOver.winner?.id === myPlayer?.id;
+function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
+  const isTeams = gameOver.winnerTeam != null;
+  const winnerTeamNum = gameOver.winnerTeam;
+  const winnerColor = isTeams ? teamColor(winnerTeamNum) : getPlayerColor(gameOver.winner?.id);
+
+  // Teams: am I on the winning team?
+  const isWinner = isTeams
+    ? myPlayer?.team === winnerTeamNum
+    : gameOver.winner?.id === myPlayer?.id;
 
   useEffect(() => {
     if (isWinner) {
@@ -101,6 +107,79 @@ function GameOver({ gameOver, myPlayer, isHost, returnToLobby }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (isTeams) {
+    // Group players by team, compute team totals
+    const teamMap = {};
+    for (const p of (gameOver.finalScores || [])) {
+      if (!p.team || p.is_spectator) continue;
+      if (!teamMap[p.team]) teamMap[p.team] = { players: [], total: 0 };
+      teamMap[p.team].players.push(p);
+      teamMap[p.team].total += p.score;
+    }
+    const teamsSorted = Object.entries(teamMap)
+      .map(([tn, data]) => ({ teamNum: parseInt(tn), ...data }))
+      .sort((a, b) => b.total - a.total);
+
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Equipo ganador</div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 48, color: winnerColor }}>Equipo {winnerTeamNum}</div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 26, color: 'var(--c-muted)', marginTop: 2 }}>{gameOver.teamScore} pts en total</div>
+          {/* Show both winning team members */}
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
+            {(teamMap[winnerTeamNum]?.players || []).map(p => (
+              <div key={p.id} style={{ textAlign: 'center' }}>
+                <div style={{ fontWeight: 700, color: winnerColor, fontSize: 18 }}>{p.display_name}</div>
+                <div style={{ fontSize: 13, color: 'var(--c-muted)' }}>{p.score} pts</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* All teams ranked */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+          style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
+          {teamsSorted.map((team, i) => {
+            const color = teamColor(team.teamNum);
+            const isWinningTeam = team.teamNum === winnerTeamNum;
+            return (
+              <div key={team.teamNum} style={{
+                background: isWinningTeam ? `${color}18` : 'var(--c-surface)',
+                border: `1px solid ${isWinningTeam ? color : 'var(--c-border)'}`,
+                borderRadius: 'var(--r-lg)', overflow: 'hidden',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>{i + 1}.</span>
+                    <span style={{ fontFamily: 'Fredoka One', fontSize: 17, color }}>Equipo {team.teamNum}</span>
+                    {isWinningTeam && <span style={{ fontSize: 16 }}>🏆</span>}
+                  </div>
+                  <span style={{ fontFamily: 'Fredoka One', fontSize: 22, color }}>{team.total} pts</span>
+                </div>
+                {team.players.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 16px 7px 36px', fontSize: 13 }}>
+                    <span style={{ color: 'var(--c-text)' }}>{p.display_name}</span>
+                    <span style={{ color: 'var(--c-muted)' }}>{p.score} pts</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </motion.div>
+
+        {isHost
+          ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button></motion.div>
+          : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</motion.div>
+        }
+        <ReactionBar />
+      </div>
+    );
+  }
+
+  // Normal / basta mode
+  const color = getPlayerColor(gameOver.winner?.id);
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -143,7 +222,7 @@ export default function Game() {
   const requestReveal = () => socket.emit('request_reveal',  { roundId: round?.id });
   const returnToLobby = () => socket.emit('return_to_lobby', { gameId: game.id });
 
-  if (gameOver) return <GameOver gameOver={gameOver} myPlayer={myPlayer} isHost={isHost} returnToLobby={returnToLobby} />;
+  if (gameOver) return <GameOver gameOver={gameOver} myPlayer={myPlayer} players={players} isHost={isHost} returnToLobby={returnToLobby} />;
 
   // No categories left
   if (noCategories) {

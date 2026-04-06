@@ -187,8 +187,8 @@ export function useSocket() {
       }
     });
 
-    socket.on('game_over', ({ winner, finalScores }) => {
-      store.setGameOver({ winner, finalScores });
+    socket.on('game_over', ({ winner, winnerTeam, teamScore, finalScores }) => {
+      store.setGameOver({ winner, winnerTeam: winnerTeam ?? null, teamScore: teamScore ?? null, finalScores });
     });
 
     socket.on('no_categories', () => {
