@@ -275,7 +275,7 @@ export default function SpectrumDial({
 
         {/* Revealed guess markers */}
         <AnimatePresence>
-          {isRevealing && revealData.guesses.map((g, i) => {
+          {isRevealing && revealData.guesses.filter(g => g.guessPct !== null).map((g, i) => {
             const player = players.find(p => p.id === g.playerId);
             const color = getPlayerColor(g.playerId);
             const pos = pctToXY(g.guessPct, R + 18);

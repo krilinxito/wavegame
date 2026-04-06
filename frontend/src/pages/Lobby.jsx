@@ -1,11 +1,23 @@
 import { useState, useRef } from 'react';
-import emoji from 'node-emoji';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerAvatar, { getPlayerColor } from '../components/shared/PlayerAvatar';
 import RoomCode from '../components/shared/RoomCode';
 import Button from '../components/shared/Button';
 import socket from '../socket';
 import useGameStore from '../store/gameStore';
+
+const SHORTCODES = {
+  fire:'🔥',skull:'💀',heart:'❤️',ice:'🧊',snowflake:'❄️',rocket:'🚀',star:'⭐',
+  smile:'😊',laugh:'😂',cry:'😢',angry:'😠',cool:'😎',think:'🤔',wow:'😮',
+  clap:'👏',thumbsup:'👍',thumbsdown:'👎',muscle:'💪',eyes:'👀',wave:'👋',
+  sun:'☀️',moon:'🌙',rain:'🌧️',lightning:'⚡',rainbow:'🌈',
+  dog:'🐶',cat:'🐱',pig:'🐷',chicken:'🐔',fish:'🐟',
+  pizza:'🍕',burger:'🍔',sushi:'🍣',taco:'🌮',beer:'🍺',
+  money:'💰',crown:'👑',trophy:'🏆',target:'🎯',bomb:'💣',
+  poop:'💩',ghost:'👻',alien:'👽',robot:'🤖',devil:'😈',
+  red:'🔴',blue:'🔵',green:'🟢',yellow:'🟡',black:'⚫',white:'⚪',
+};
+const emojify = str => str.replace(/:([a-z0-9_]+):/gi, (m, code) => SHORTCODES[code.toLowerCase()] ?? m);
 
 const MODE_INFO = {
   normal: { label: 'Normal',  desc: 'Psychic rotante · poderes activados' },
@@ -45,7 +57,7 @@ export default function Lobby() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const toEmoji = str => emoji.emojify(str, { fallback: name => `:${name}:` });
+      const toEmoji = str => emojify(str);
       const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
       let ok = 0, skip = 0;
       for (const line of lines) {

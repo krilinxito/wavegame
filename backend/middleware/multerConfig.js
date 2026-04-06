@@ -1,9 +1,13 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const uuidv4 = () => require('crypto').randomUUID();
 
+const uploadDir = path.join(__dirname, '../uploads/players');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../uploads/players'),
+  destination: uploadDir,
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${uuidv4()}${ext}`);
