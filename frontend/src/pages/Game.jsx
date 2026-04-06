@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import ClueGiving from '../components/round/ClueGiving';
 import Guessing from '../components/round/Guessing';
 import Revealing from '../components/round/Revealing';
@@ -10,6 +12,54 @@ import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
 
+function GameOver({ gameOver, myPlayer, isHost, returnToLobby }) {
+  const color = getPlayerColor(gameOver.winner?.id);
+  const isWinner = gameOver.winner?.id === myPlayer?.id;
+
+  useEffect(() => {
+    if (isWinner) {
+      const end = Date.now() + 3500;
+      const frame = () => {
+        confetti({ particleCount: 6, angle: 60,  spread: 55, origin: { x: 0 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });
+        confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      };
+      frame();
+    } else {
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.4 }, colors: ['#fbbf24','#6c63ff','#ef4444'] });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 14, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Ganador</div>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 52, color }}>{gameOver.winner?.display_name}</div>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 28, color: 'var(--c-muted)', marginTop: 4 }}>{gameOver.winner?.score} pts</div>
+      </motion.div>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+        style={{ width: '100%', maxWidth: 360, background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}
+      >
+        {gameOver.finalScores.map((p, i) => {
+          const c = getPlayerColor(p.id);
+          return (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: i < gameOver.finalScores.length - 1 ? '1px solid var(--c-border)' : 'none' }}>
+              <span style={{ fontSize: 13, color: 'var(--c-muted)', width: 20 }}>{['1.','2.','3.'][i] ?? `${i+1}.`}</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>{p.display_name}</span>
+              <span style={{ fontFamily: 'Fredoka One', fontSize: 20, color: c }}>{p.score}</span>
+            </div>
+          );
+        })}
+      </motion.div>
+      {isHost
+        ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button></motion.div>
+        : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</motion.div>
+      }
+      <ReactionBar />
+    </div>
+  );
+}
+
 export default function Game() {
   const { round, game, myPlayer, players, gameOver, noCategories, revealData } = useGameStore();
   if (!game || !myPlayer) return null;
@@ -20,57 +70,7 @@ export default function Game() {
   const requestReveal = () => socket.emit('request_reveal',  { roundId: round?.id });
   const returnToLobby = () => socket.emit('return_to_lobby', { gameId: game.id });
 
-  // Game over
-  if (gameOver) {
-    const color = getPlayerColor(gameOver.winner?.id);
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--c-bg)', padding: 24,
-      }}>
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 14, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
-            Ganador
-          </div>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 52, color }}>
-            {gameOver.winner?.display_name}
-          </div>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 28, color: 'var(--c-muted)', marginTop: 4 }}>
-            {gameOver.winner?.score} pts
-          </div>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-          style={{ width: '100%', maxWidth: 360, background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}
-        >
-          {gameOver.finalScores.map((p, i) => {
-            const c = getPlayerColor(p.id);
-            const medals = ['1.', '2.', '3.'];
-            return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: i < gameOver.finalScores.length - 1 ? '1px solid var(--c-border)' : 'none' }}>
-                <span style={{ fontSize: 13, color: 'var(--c-muted)', width: 20 }}>{medals[i] ?? `${i + 1}.`}</span>
-                <span style={{ flex: 1, fontWeight: 700 }}>{p.display_name}</span>
-                <span style={{ fontFamily: 'Fredoka One', fontSize: 20, color: c }}>{p.score}</span>
-              </div>
-            );
-          })}
-        </motion.div>
-
-        {isHost && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
-            <Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button>
-          </motion.div>
-        )}
-        {!isHost && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-            style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>
-            Esperando al host...
-          </motion.div>
-        )}
-        <ReactionBar />
-      </div>
-    );
-  }
+  if (gameOver) return <GameOver gameOver={gameOver} myPlayer={myPlayer} isHost={isHost} returnToLobby={returnToLobby} />;
 
   // No categories left
   if (noCategories) {

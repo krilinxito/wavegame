@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import SpectrumDial from '../spectrum/SpectrumDial';
 import useGameStore from '../../store/gameStore';
 import { getPlayerColor } from '../shared/PlayerAvatar';
 
 const REASON_LABELS = {
+  psychic_good_clue: { label: '🧠 Buena pista', color: '#10b981' },
+  psychic_no_hits:   { label: '💀 Nadie adivinó', color: '#ef4444' },
   bullseye:            { label: '🎯 Bullseye!', color: '#ef4444' },
   close:               { label: '🔥 Cerca',     color: '#f97316' },
   near:                { label: '✓ Cerca',       color: '#fbbf24' },
@@ -26,7 +29,22 @@ export default function Revealing() {
   if (!revealData) return null;
 
   const { targetPct, guesses, activePowers } = revealData;
-  const sorted = [...guesses].sort((a, b) => b.scoreDelta - a.scoreDelta);
+  const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
+  const sorted = [...guesses].filter(g => g.guessPct !== null).sort((a, b) => b.scoreDelta - a.scoreDelta);
+
+  const myResult = sorted.find(g => g.playerId === myPlayer?.id);
+
+  useEffect(() => {
+    if (!myResult) return;
+    if (myResult.reason === 'bullseye') {
+      // Full screen burst for bullseye
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });
+      setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.1, y: 0.6 } }), 200);
+      setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.9, y: 0.6 } }), 400);
+    } else if (myResult.reason === 'close' || myResult.reason === 'near') {
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#fbbf24','#f97316','#10b981'] });
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
@@ -50,6 +68,28 @@ export default function Revealing() {
         players={players}
         revealData={revealData}
       />
+
+      {/* Psychic result */}
+      {psychicResult && (() => {
+        const psychic = players.find(p => p.id === psychicResult.playerId);
+        const color = getPlayerColor(psychicResult.playerId);
+        const reason = REASON_LABELS[psychicResult.reason] || { label: psychicResult.reason, color: '#6b7280' };
+        return (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            style={{ width: '100%', maxWidth: 480, background: `${color}11`, border: `1px solid ${color}33`, borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}
+          >
+            <span style={{ fontSize: 20 }}>🧠</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontWeight: 700, color }}>{psychic?.display_name}</span>
+              <span style={{ color: 'var(--c-muted)', fontSize: 13, marginLeft: 6 }}>Psychic</span>
+              <div style={{ fontSize: 12, color: reason.color }}>{reason.label}</div>
+            </div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 24, color: psychicResult.scoreDelta >= 0 ? '#10b981' : '#ef4444' }}>
+              {psychicResult.scoreDelta >= 0 ? `+${psychicResult.scoreDelta}` : psychicResult.scoreDelta}
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Scores table */}
       <motion.div

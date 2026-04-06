@@ -178,11 +178,23 @@ async function triggerReveal(io, socket, roundId) {
     if (r.delta !== 0) {
       await updatePlayerScore(r.playerId, r.delta);
     }
-    // Log
     await pool.execute(
       'INSERT INTO score_log (id, game_id, round_id, player_id, delta, reason) VALUES (?, ?, ?, ?, ?, ?)',
       [uuidv4(), round.game_id, roundId, r.playerId, r.delta, r.reason]
     );
+  }
+
+  // Psychic scoring: +1 per guesser that hit, -2 if nobody hit
+  if (game.mode !== 'basta') {
+    const hits = scoreResults.filter(r => r.delta > 0).length;
+    const psychicDelta = hits > 0 ? hits : -2;
+    const psychicReason = hits > 0 ? 'psychic_good_clue' : 'psychic_no_hits';
+    await updatePlayerScore(round.psychic_id, psychicDelta);
+    await pool.execute(
+      'INSERT INTO score_log (id, game_id, round_id, player_id, delta, reason) VALUES (?, ?, ?, ?, ?, ?)',
+      [uuidv4(), round.game_id, roundId, round.psychic_id, psychicDelta, psychicReason]
+    );
+    scoreResults.push({ playerId: round.psychic_id, guessPct: null, delta: psychicDelta, reason: psychicReason });
   }
 
   await markDone(roundId);
