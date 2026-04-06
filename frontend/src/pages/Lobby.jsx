@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import emoji from 'node-emoji';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerAvatar, { getPlayerColor } from '../components/shared/PlayerAvatar';
 import RoomCode from '../components/shared/RoomCode';
@@ -44,10 +45,11 @@ export default function Lobby() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
+      const toEmoji = str => emoji.emojify(str, { fallback: name => `:${name}:` });
       const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
       let ok = 0, skip = 0;
       for (const line of lines) {
-        const parts = line.split(',').map(p => p.trim());
+        const parts = line.split(',').map(p => toEmoji(p.trim()));
         if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) { skip++; continue; }
         socket.emit('add_category', { gameId: game.id, term: parts[0], left_extreme: parts[1], right_extreme: parts[2], playerId: myPlayer.id });
         ok++;
