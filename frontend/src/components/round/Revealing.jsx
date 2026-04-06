@@ -26,16 +26,13 @@ const REASON_LABELS = {
 
 export default function Revealing() {
   const { revealData, players, round, category, game, myPlayer } = useGameStore();
-  if (!revealData) return null;
 
-  const { targetPct, guesses, activePowers } = revealData;
-  const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
-  const sorted = [...guesses].filter(g => g.guessPct !== null).sort((a, b) => b.scoreDelta - a.scoreDelta);
+  const guesses = revealData?.guesses ?? [];
+  const myResult = guesses.find(g => g.playerId === myPlayer?.id && g.guessPct !== null);
 
-  const myResult = sorted.find(g => g.playerId === myPlayer?.id);
-
+  // Hooks must be before any conditional return
   useEffect(() => {
-    if (!myResult) return;
+    if (!revealData || !myResult) return;
     if (myResult.reason === 'bullseye') {
       // Full screen burst for bullseye
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });
@@ -44,7 +41,13 @@ export default function Revealing() {
     } else if (myResult.reason === 'close' || myResult.reason === 'near') {
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#fbbf24','#f97316','#10b981'] });
     }
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [revealData?.targetPct]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!revealData) return null;
+
+  const { targetPct, activePowers } = revealData;
+  const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
+  const sorted = [...guesses].filter(g => g.guessPct !== null).sort((a, b) => b.scoreDelta - a.scoreDelta);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
