@@ -167,12 +167,10 @@ export default function PowerToast() {
         {hits.map(h => <HitFlash key={h.id} powerName={h.powerName} />)}
       </AnimatePresence>
 
-      {/* Toast stack — top-right, below header */}
+      {/* Toast stack — fluye en el documento donde se renderice */}
       <div style={{
-        position: 'fixed', top: 64, right: 16, zIndex: 150,
         display: 'flex', flexDirection: 'column', gap: 8,
-        pointerEvents: 'none',
-        maxWidth: 280,
+        marginTop: toasts.length ? 12 : 0,
       }}>
         <AnimatePresence>
           {toasts.map(({ id, powerName, msg, isTargetedAtMe }) => {
@@ -187,7 +185,6 @@ export default function PowerToast() {
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 40, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-                style={{ pointerEvents: 'auto' }}
                 onClick={() => dismiss(id)}
               >
                 <div style={{

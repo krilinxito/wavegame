@@ -24,98 +24,151 @@ const POWER_COLORS = {
 
 const SLOTS = 3;
 
-function EmptySlot({ index }) {
+function EmptySlot() {
   return (
     <div style={{
-      width: 64, height: 72,
+      width: 68, height: 80,
       border: '2px dashed rgba(255,255,255,0.1)',
       borderRadius: 14,
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      gap: 4,
-      opacity: 0.35,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      opacity: 0.3,
     }}>
-      <span style={{ fontSize: 20, filter: 'grayscale(1)', opacity: 0.4 }}>✦</span>
+      <span style={{ fontSize: 18, opacity: 0.4 }}>✦</span>
     </div>
   );
 }
 
-function PowerSlot({ power, isFree, queued, alreadyUsed, onClick }) {
+function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving, onClick }) {
+  const [hovered, setHovered] = useState(false);
   const color = POWER_COLORS[power.name] || '#7c3aed';
   const icon  = POWER_ICONS[power.name]  || '✨';
+
+  let hoverLabel = '';
+  if (!alreadyUsed) {
+    if (!purchased) hoverLabel = isFree ? 'Canjear gratis' : 'Comprar';
+    else if (queued)  hoverLabel = '⏳ Reservado';
+    else              hoverLabel = isClueGiving ? 'Reservar' : 'Usar';
+  }
 
   return (
     <motion.button
       whileHover={alreadyUsed ? {} : { scale: 1.06 }}
       whileTap={alreadyUsed   ? {} : { scale: 0.94 }}
-      onClick={alreadyUsed ? undefined : onClick}
-      title={alreadyUsed ? 'Este poder ya fue usado esta ronda' : power.name}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={alreadyUsed || queued ? undefined : onClick}
       style={{
-        width: 64, height: 72,
+        width: 68, height: 80,
         background: alreadyUsed
           ? 'rgba(255,255,255,0.04)'
-          : queued
-            ? `${color}22`
+          : purchased
+            ? `linear-gradient(145deg, ${color}44, ${color}22)`
             : `linear-gradient(145deg, ${color}33, ${color}18)`,
-        border: `2px solid ${alreadyUsed ? 'rgba(255,255,255,0.1)' : queued ? `${color}66` : color}`,
+        border: `2px solid ${
+          alreadyUsed ? 'rgba(255,255,255,0.1)'
+          : queued     ? `${color}88`
+          : purchased  ? color
+          :              `${color}88`
+        }`,
         borderRadius: 14,
-        cursor: alreadyUsed ? 'not-allowed' : 'pointer',
+        cursor: alreadyUsed || queued ? 'default' : 'pointer',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        gap: 4,
-        padding: 0,
+        gap: 3,
+        padding: '6px 4px 4px',
         position: 'relative',
         opacity: alreadyUsed ? 0.4 : 1,
-        boxShadow: alreadyUsed || queued ? 'none' : `0 4px 16px ${color}33`,
+        boxShadow: alreadyUsed || queued ? 'none'
+          : purchased ? `0 4px 20px ${color}55`
+          : `0 2px 12px ${color}22`,
+        overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 26, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 28, lineHeight: 1 }}>{icon}</span>
       <span style={{
         fontFamily: 'Fredoka One', fontSize: 10,
-        color: alreadyUsed ? 'var(--c-muted)' : queued ? `${color}cc` : '#fff',
+        color: alreadyUsed ? 'var(--c-muted)' : '#fff',
         textAlign: 'center', lineHeight: 1.1,
-        maxWidth: 56, overflow: 'hidden',
-        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        padding: '0 4px',
+        maxWidth: 60, padding: '0 2px',
       }}>
         {power.name}
       </span>
 
-      {/* Badges */}
-      {isFree && !alreadyUsed && !queued && (
+      {/* Price tag (bottom left, shown if not purchased) */}
+      {!purchased && !alreadyUsed && (
         <span style={{
-          position: 'absolute', top: -6, right: -6,
+          position: 'absolute', bottom: 4, left: 4,
+          fontSize: 9, fontFamily: 'Fredoka One',
+          color: isFree ? '#fbbf24' : `${color}dd`,
+        }}>
+          {isFree ? 'FREE' : `${power.cost}p`}
+        </span>
+      )}
+
+      {/* Status badges (top right) */}
+      {isFree && !purchased && !alreadyUsed && (
+        <span style={{
+          position: 'absolute', top: -5, right: -5,
           background: '#fbbf24', color: '#000',
           fontSize: 8, fontWeight: 800,
           borderRadius: 6, padding: '1px 4px',
-          letterSpacing: 0.3,
         }}>FREE</span>
       )}
       {queued && (
         <span style={{
-          position: 'absolute', top: -6, right: -6,
-          background: `${color}`, color: '#fff',
+          position: 'absolute', top: -5, right: -5,
+          background: color, color: '#fff',
           fontSize: 9, fontWeight: 800,
           borderRadius: 6, padding: '1px 4px',
         }}>⏳</span>
       )}
       {alreadyUsed && (
         <span style={{
-          position: 'absolute', top: -6, right: -6,
+          position: 'absolute', top: -5, right: -5,
           background: 'rgba(255,255,255,0.15)', color: 'var(--c-muted)',
           fontSize: 8, fontWeight: 700,
           borderRadius: 6, padding: '1px 4px',
         }}>✓</span>
       )}
+      {purchased && !queued && !alreadyUsed && (
+        <span style={{
+          position: 'absolute', top: -5, right: -5,
+          background: color, color: '#fff',
+          fontSize: 8, fontWeight: 800,
+          borderRadius: 6, padding: '1px 5px',
+        }}>✔</span>
+      )}
+
+      {/* Hover overlay label */}
+      <AnimatePresence>
+        {hovered && hoverLabel && !alreadyUsed && !queued && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute', inset: 0,
+              background: `${color}cc`,
+              borderRadius: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800,
+              color: '#fff', textAlign: 'center',
+              padding: '0 4px', lineHeight: 1.2,
+            }}
+          >
+            {hoverLabel}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.button>
   );
 }
 
 export default function PowerCard() {
-  const { myPower, myPowerQueued, activePowers, players, myPlayer, round, game } = useGameStore();
-  const [open, setOpen]               = useState(false);
+  const { myPower, myPowerPurchased, myPowerQueued, activePowers, players, myPlayer, round, game } = useGameStore();
+  const [open, setOpen]             = useState(false);
   const [selectedTarget, setSelectedTarget] = useState(null);
-  const [used, setUsed]               = useState(false);
+  const [used, setUsed]             = useState(false);
 
   useEffect(() => {
     setUsed(false);
@@ -125,16 +178,16 @@ export default function PowerCard() {
   if (game?.mode === 'teams') return null;
   if (round?.status !== 'guessing' && round?.status !== 'clue_giving') return null;
 
-  const isClueGiving   = round?.status === 'clue_giving';
-  const hasPower       = myPower && myPower.power !== null;
+  const isClueGiving  = round?.status === 'clue_giving';
+  const hasPower      = myPower && myPower.power !== null;
   const { roundPowerId, power, isFree } = hasPower ? myPower : {};
 
   const alreadyUsedThisRound = hasPower && activePowers.some(p => p.powerName === power.name);
-  const isQueued       = myPowerQueued && isClueGiving;
-  const isDone         = (myPowerQueued && !isClueGiving) || used;
+  const isQueued  = myPowerQueued && isClueGiving;
+  const isDone    = (myPowerQueued && !isClueGiving) || used;
 
-  const needsTarget    = hasPower && ['veneno', 'bloqueo', 'switch'].includes(power.name);
-  const color          = hasPower ? (POWER_COLORS[power.name] || '#7c3aed') : '#7c3aed';
+  const needsTarget = hasPower && ['veneno', 'bloqueo', 'switch'].includes(power.name);
+  const color       = hasPower ? (POWER_COLORS[power.name] || '#7c3aed') : '#7c3aed';
 
   const eligibleTargets = players.filter(p =>
     p.id !== myPlayer?.id &&
@@ -142,43 +195,50 @@ export default function PowerCard() {
     p.connected
   );
 
-  const handleAction = () => {
+  // Step 1: Buy (pay cost, claim to inventory)
+  const handleBuy = () => {
+    socket.emit('purchase_power', { roundPowerId, isFree: !!isFree });
+    setOpen(false);
+  };
+
+  // Step 2: Use / Reserve (apply effect)
+  const handleUse = () => {
     if (needsTarget && !selectedTarget) return;
     if (isClueGiving) {
       socket.emit('queue_power', {
         roundPowerId,
         targetPlayerId: selectedTarget || null,
-        isFree: !!isFree,
+        isFree: true, // ya fue pagado en comprar
       });
       setOpen(false);
     } else {
       socket.emit('activate_power', {
         roundPowerId,
         targetPlayerId: selectedTarget || null,
-        isFree: !!isFree,
+        isFree: true, // ya fue pagado en comprar
       });
       setUsed(true);
       setOpen(false);
     }
   };
 
-  // Build the 3 slots
   const slots = Array.from({ length: SLOTS }, (_, i) => {
     if (i === 0 && hasPower && !isDone) {
       return {
         type: 'power',
-        power, isFree, queued: isQueued,
-        alreadyUsed: alreadyUsedThisRound,
+        power, isFree, purchased: myPowerPurchased,
+        queued: isQueued, alreadyUsed: alreadyUsedThisRound,
       };
     }
     return { type: 'empty' };
   });
 
-  const actionLabel = isClueGiving ? 'Reservar para guessing' : 'Activar';
+  // Modal content depends on step
+  const isStep1 = !myPowerPurchased; // comprar
+  const actionLabel = isStep1 ? (isFree ? 'Canjear gratis' : 'Comprar') : isClueGiving ? 'Reservar' : 'Usar';
 
   return (
     <>
-      {/* Inventory panel */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -208,24 +268,18 @@ export default function PowerCard() {
                 key={i}
                 power={slot.power}
                 isFree={slot.isFree}
+                purchased={slot.purchased}
                 queued={slot.queued}
                 alreadyUsed={slot.alreadyUsed}
+                isClueGiving={isClueGiving}
                 onClick={() => setOpen(true)}
               />
             ) : (
-              <EmptySlot key={i} index={i} />
+              <EmptySlot key={i} />
             )
           )}
         </div>
 
-        {/* "Sin poder" hint solo en guessing */}
-        {!hasPower && !isClueGiving && (
-          <div style={{ fontSize: 10, color: 'var(--c-muted)', textAlign: 'center', marginTop: -2 }}>
-            sin poder esta ronda
-          </div>
-        )}
-
-        {/* Queued hint */}
         {isQueued && (
           <div style={{ fontSize: 10, color, textAlign: 'center', marginTop: -2 }}>
             ⏳ se activa al adivinar
@@ -233,72 +287,98 @@ export default function PowerCard() {
         )}
       </motion.div>
 
-      {/* Modal */}
       {hasPower && !isDone && (
-        <Modal open={open} onClose={() => setOpen(false)} title={`${POWER_ICONS[power.name] || '✨'} ${power.name}`}>
+        <Modal
+          open={open}
+          onClose={() => setOpen(false)}
+          title={`${POWER_ICONS[power.name] || '✨'} ${power.name}`}
+        >
           <p style={{ color: 'var(--c-muted)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
             {power.description}
           </p>
 
-          {isClueGiving && (
-            <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 18 }}>⏳</span>
-              <span>El efecto se activa automáticamente cuando empieza la adivinación</span>
+          {/* Step indicator */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+            {['Comprar', 'Usar'].map((step, i) => {
+              const active = isStep1 ? i === 0 : i === 1;
+              const done   = !isStep1 && i === 0;
+              return (
+                <div key={i} style={{
+                  flex: 1, padding: '6px 8px', borderRadius: 8, textAlign: 'center',
+                  fontSize: 11, fontWeight: 700,
+                  background: done ? `${color}22` : active ? `${color}33` : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${done || active ? color : 'rgba(255,255,255,0.08)'}`,
+                  color: done ? `${color}88` : active ? color : 'var(--c-muted)',
+                }}>
+                  {done ? `✓ ${step}` : `${i + 1}. ${step}`}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Step 1: buy info */}
+          {isStep1 && (
+            <div style={{ background: isFree ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)', border: isFree ? '1px solid #fbbf2444' : 'none', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
+              {isFree ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>🎯</span>
+                  <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>¡Poder gratis por bullseye!</span>
+                </span>
+              ) : (
+                <>
+                  <span style={{ color: 'var(--c-muted)' }}>Costo: </span>
+                  <span style={{ fontFamily: 'Fredoka One', color, fontSize: 20 }}>{power.cost} pts</span>
+                  <span style={{ color: 'var(--c-muted)', fontSize: 12, marginLeft: 8 }}>
+                    — se guardan en tu inventario
+                  </span>
+                </>
+              )}
             </div>
           )}
 
-          <div style={{ background: isFree ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)', border: isFree ? '1px solid #fbbf2444' : 'none', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
-            {isFree ? (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18 }}>🎯</span>
-                <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>¡Poder gratis por bullseye!</span>
-                <span style={{ color: 'var(--c-muted)', fontSize: 12, textDecoration: 'line-through' }}>{power.cost} pts</span>
-              </span>
-            ) : (
-              <>
-                <span style={{ color: 'var(--c-muted)' }}>Costo: </span>
-                <span style={{ fontFamily: 'Fredoka One', color, fontSize: 18 }}>{power.cost} pts</span>
-                {' · '}
-                <span style={{ color: 'var(--c-muted)', fontSize: 12 }}>
-                  {isClueGiving ? 'Se descuenta ahora, efecto en guessing' : 'Se descuenta al activar'}
-                </span>
-              </>
-            )}
-          </div>
-
-          {needsTarget && (
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>Elegí un jugador:</p>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {eligibleTargets.map(p => (
-                  <motion.button
-                    key={p.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedTarget(p.id)}
-                    style={{
-                      background: selectedTarget === p.id ? color + '33' : 'rgba(255,255,255,0.05)',
-                      border: `2px solid ${selectedTarget === p.id ? color : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: 12, padding: '8px 14px',
-                      cursor: 'pointer', color: 'var(--c-text)',
-                      fontFamily: 'Nunito, sans-serif', fontWeight: 700,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}
-                  >
-                    <PlayerAvatar player={p} size={28} />
-                    {p.display_name}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
+          {/* Step 2: use info + target */}
+          {!isStep1 && (
+            <>
+              {isClueGiving && (
+                <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>⏳</span>
+                  <span>El efecto se activará automáticamente cuando empiece la adivinación</span>
+                </div>
+              )}
+              {needsTarget && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>Elegí un jugador:</p>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {eligibleTargets.map(p => (
+                      <motion.button
+                        key={p.id}
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => setSelectedTarget(p.id)}
+                        style={{
+                          background: selectedTarget === p.id ? color + '33' : 'rgba(255,255,255,0.05)',
+                          border: `2px solid ${selectedTarget === p.id ? color : 'rgba(255,255,255,0.1)'}`,
+                          borderRadius: 12, padding: '8px 14px',
+                          cursor: 'pointer', color: 'var(--c-text)',
+                          fontFamily: 'Nunito, sans-serif', fontWeight: 700,
+                          display: 'flex', alignItems: 'center', gap: 8,
+                        }}
+                      >
+                        <PlayerAvatar player={p} size={28} />
+                        {p.display_name}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               variant="primary"
-              onClick={handleAction}
-              disabled={needsTarget && !selectedTarget}
+              onClick={isStep1 ? handleBuy : handleUse}
+              disabled={!isStep1 && needsTarget && !selectedTarget}
               style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
             >
               {actionLabel}

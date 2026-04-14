@@ -348,11 +348,11 @@ export default function Game() {
             allTeamRoundsDone={allTeamRoundsDone}
           />
         )}
-        <Leaderboard compact />
+        <Leaderboard />
+        <PowerToast />
       </div>
 
       <PowerCard />
-      <PowerToast />
       <ReactionBar />
     </div>
   );

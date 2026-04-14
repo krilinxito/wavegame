@@ -45,8 +45,36 @@ async function checkPowerTypeConflict(roundId, powerIdToCheck) {
 }
 
 /**
+ * Purchase a power (pay cost, store in inventory). Effect is NOT applied yet.
+ */
+async function purchasePower(roundPowerId, playerId, isFree = false) {
+  const [rows] = await pool.execute(
+    `SELECT rp.*, p.name, p.cost FROM round_powers rp JOIN powers p ON rp.power_id = p.id
+     WHERE rp.id = ? AND rp.player_id = ?`,
+    [roundPowerId, playerId]
+  );
+
+  if (!rows.length) throw new Error('Power not found');
+  const rp = rows[0];
+  if (rp.activated || rp.queued) throw new Error('Power already used');
+  if (rp.purchased) throw new Error('Power already purchased');
+
+  if (!isFree) {
+    const [playerRows] = await pool.execute('SELECT score FROM players WHERE id=?', [playerId]);
+    if (!playerRows.length) throw new Error('Player not found');
+    if (playerRows[0].score < rp.cost) throw new Error('INSUFFICIENT_POINTS');
+    await pool.execute('UPDATE players SET score = score - ? WHERE id=?', [rp.cost, playerId]);
+  }
+
+  await pool.execute('UPDATE round_powers SET purchased=TRUE WHERE id=?', [roundPowerId]);
+
+  return { powerName: rp.name, cost: rp.cost };
+}
+
+/**
  * Queue a power during clue_giving phase.
- * Deducts cost immediately. Effect is applied when guessing phase starts.
+ * If already purchased, skips cost deduction.
+ * Effect is applied when guessing phase starts.
  */
 async function queuePower(roundPowerId, playerId, targetPlayerId = null, isFree = false) {
   const [rows] = await pool.execute(
@@ -64,8 +92,8 @@ async function queuePower(roundPowerId, playerId, targetPlayerId = null, isFree 
   // Anti-stacking: only one activation per power type per round
   await checkPowerTypeConflict(rp.round_id, rp.power_id);
 
-  // Deduct cost now (player is committing to use the power)
-  if (!isFree) {
+  // Deduct cost only if not already purchased
+  if (!isFree && !rp.purchased) {
     const [playerRows] = await pool.execute('SELECT score FROM players WHERE id=?', [playerId]);
     if (!playerRows.length) throw new Error('Player not found');
     if (playerRows[0].score < rp.cost) throw new Error('INSUFFICIENT_POINTS');
@@ -192,8 +220,8 @@ async function activatePower(roundPowerId, playerId, targetPlayerId = null, isFr
   // Anti-stacking: only one activation per power type per round
   await checkPowerTypeConflict(rp.round_id, rp.power_id);
 
-  // Check player has enough points (skip if free bullseye reward)
-  if (!isFree) {
+  // Deduct cost only if not already purchased and not free
+  if (!isFree && !rp.purchased) {
     const [playerRows] = await pool.execute('SELECT score FROM players WHERE id=?', [playerId]);
     if (!playerRows.length) throw new Error('Player not found');
     if (playerRows[0].score < rp.cost) throw new Error('INSUFFICIENT_POINTS');
@@ -227,4 +255,4 @@ async function getActivePowers(roundId) {
   return rows;
 }
 
-module.exports = { offerPowers, queuePower, getQueuedPowers, applyQueuedPowers, activatePower, getActivePowers };
+module.exports = { offerPowers, purchasePower, queuePower, getQueuedPowers, applyQueuedPowers, activatePower, getActivePowers };

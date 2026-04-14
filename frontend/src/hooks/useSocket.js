@@ -148,6 +148,10 @@ export function useSocket() {
       store.setMyPower({ roundPowerId, power, isFree: !!isFree });
     });
 
+    socket.on('power_purchased', () => {
+      store.setMyPowerPurchased(true);
+    });
+
     socket.on('power_queued', () => {
       store.setMyPowerQueued(true);
     });
@@ -244,6 +248,7 @@ export function useSocket() {
       socket.off('psychic_target');
       socket.off('clue_submitted');
       socket.off('power_offered');
+      socket.off('power_purchased');
       socket.off('power_queued');
       socket.off('power_activated');
       socket.off('bloqueo_applied');

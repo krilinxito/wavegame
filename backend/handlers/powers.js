@@ -1,9 +1,39 @@
 const pool = require('../db');
-const { activatePower, queuePower } = require('../services/powerService');
+const { activatePower, queuePower, purchasePower } = require('../services/powerService');
 const { getPlayersForGame } = require('../services/playerService');
 const { getRound } = require('../services/roundService');
 
 module.exports = function powerHandlers(io, socket) {
+
+  // Purchase a power — pay cost now, use/reserve later
+  socket.on('purchase_power', async ({ roundPowerId, isFree }) => {
+    try {
+      const playerId = socket.data.playerId;
+
+      const [rpRows] = await pool.execute('SELECT round_id FROM round_powers WHERE id=?', [roundPowerId]);
+      if (!rpRows.length) return;
+      const roundId = rpRows[0].round_id;
+      const round = await getRound(roundId);
+
+      if (round.status !== 'clue_giving' && round.status !== 'guessing') {
+        return socket.emit('error', { code: 'WRONG_PHASE', message: 'No podés comprar poderes en esta fase' });
+      }
+
+      await purchasePower(roundPowerId, playerId, !!isFree);
+
+      socket.emit('power_purchased', { roundPowerId });
+
+      const players = await getPlayersForGame(round.game_id);
+      io.to(socket.data.roomCode).emit('scores_updated', { players });
+
+    } catch (err) {
+      if (err.message === 'INSUFFICIENT_POINTS') {
+        socket.emit('error', { code: 'INSUFFICIENT_POINTS', message: 'No tenés suficientes puntos' });
+      } else {
+        socket.emit('error', { code: 'POWER_ERROR', message: err.message });
+      }
+    }
+  });
 
   // Queue a power during clue_giving — effect fires when guessing starts
   socket.on('queue_power', async ({ roundPowerId, targetPlayerId, isFree }) => {
