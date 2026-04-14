@@ -220,7 +220,7 @@ export default function Revealing() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {activePowers.map((p, i) => {
               const activator = players.find(pl => pl.id === p.activatorId);
-              const target = players.find(pl => pl.id === p.effect?.targetId);
+              const target = players.find(pl => pl.id === p.targetId);
               const color = getPlayerColor(p.activatorId);
               const ICONS = { cuartiles: '🔭', veneno: '☠️', escudo: '🛡️', bloqueo: '🚫', switch: '🔄' };
               const LABELS = { cuartiles: 'usó Cuartiles', veneno: 'tiró Veneno a', escudo: 'usó Escudo', bloqueo: 'bloqueó a', switch: 'hizo Switch con' };

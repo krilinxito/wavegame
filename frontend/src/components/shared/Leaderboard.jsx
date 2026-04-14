@@ -38,13 +38,13 @@ function TeamsLeaderboard({ players, round, compact }) {
             {/* Team header with total */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: compact ? '6px 10px' : '8px 12px',
+              padding: '8px 12px',
               borderBottom: `1px solid ${color}22`,
             }}>
-              <span style={{ fontWeight: 700, color, fontSize: compact ? 12 : 13 }}>
+              <span style={{ fontWeight: 700, color, fontSize: 13 }}>
                 Equipo {team.teamNum}
               </span>
-              <span style={{ fontFamily: 'Fredoka One', fontSize: compact ? 20 : 24, color }}>
+              <span style={{ fontFamily: 'Fredoka One', fontSize: 24, color }}>
                 {team.total}
               </span>
             </div>
@@ -53,17 +53,17 @@ function TeamsLeaderboard({ players, round, compact }) {
               const isPsychic = round?.psychic_id === player.id;
               return (
                 <div key={player.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: compact ? '4px 10px' : '5px 12px',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 12px',
                 }}>
-                  <PlayerAvatar player={player} size={compact ? 20 : 24} />
+                  <PlayerAvatar player={player} size={28} />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <span style={{ fontSize: compact ? 11 : 12, fontWeight: 600, color: 'var(--c-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
                       {player.display_name}
-                      {isPsychic && <span style={{ fontSize: 9, color: 'var(--c-muted)', marginLeft: 4 }}>🧠</span>}
                     </span>
+                    {isPsychic && <span style={{ fontSize: 10, color: 'var(--c-muted)' }}>🧠 psychic</span>}
                   </div>
-                  <span style={{ fontSize: compact ? 12 : 13, color: 'var(--c-muted)' }}>
+                  <span style={{ fontSize: 14, fontFamily: 'Fredoka One', color }}>
                     {player.score}
                   </span>
                 </div>
@@ -103,7 +103,7 @@ export default function Leaderboard({ compact = false }) {
       border: '1px solid var(--c-border)',
       padding: compact ? '10px 12px' : '14px',
     }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
         Puntos
       </div>
       {sorted.map((player, idx) => {
@@ -114,20 +114,22 @@ export default function Leaderboard({ compact = false }) {
             key={player.id}
             layout
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '5px 0',
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 0',
               borderBottom: idx < sorted.length - 1 ? '1px solid var(--c-border)' : 'none',
             }}
           >
-            <span style={{ fontSize: 10, color: 'var(--c-muted)', width: 14 }}>{idx + 1}</span>
-            <PlayerAvatar player={player} size={compact ? 22 : 28} />
+            <span style={{ fontSize: 11, color: 'var(--c-muted)', width: 16 }}>{idx + 1}</span>
+            <PlayerAvatar player={player} size={34} />
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: 'var(--c-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {player.display_name}
-                {isPsychic && <span style={{ fontSize: 10, color: 'var(--c-muted)', marginLeft: 4 }}>[psychic]</span>}
               </div>
+              {isPsychic && (
+                <div style={{ fontSize: 10, color: 'var(--c-muted)', marginTop: 1 }}>🧠 psychic</div>
+              )}
             </div>
-            <span style={{ fontFamily: 'Fredoka One', fontSize: compact ? 16 : 18, color, minWidth: 28, textAlign: 'right' }}>
+            <span style={{ fontFamily: 'Fredoka One', fontSize: 22, color, minWidth: 32, textAlign: 'right' }}>
               {player.score}
             </span>
           </motion.div>

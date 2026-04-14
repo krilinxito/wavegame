@@ -17,6 +17,16 @@ export function useSocket() {
     socket.on('player_updated', ({ player }) => store.updatePlayer(player));
     socket.on('player_left', ({ playerId }) => store.removePlayer(playerId));
 
+    socket.on('host_changed', ({ newHostId }) => {
+      // Update all players: clear old host flag, set new one
+      useGameStore.setState(state => ({
+        players: state.players.map(p => ({ ...p, is_host: p.id === newHostId })),
+        myPlayer: state.myPlayer
+          ? { ...state.myPlayer, is_host: state.myPlayer.id === newHostId }
+          : state.myPlayer,
+      }));
+    });
+
     socket.on('config_updated', ({ game }) => store.setGame(game));
     socket.on('game_started', ({ game }) => store.setGame(game));
 
@@ -138,6 +148,10 @@ export function useSocket() {
       store.setMyPower({ roundPowerId, power, isFree: !!isFree });
     });
 
+    socket.on('power_queued', () => {
+      store.setMyPowerQueued(true);
+    });
+
     socket.on('power_activated', (data) => {
       store.addActivePower(data);
     });
@@ -220,6 +234,7 @@ export function useSocket() {
       socket.off('player_joined');
       socket.off('player_updated');
       socket.off('player_left');
+      socket.off('host_changed');
       socket.off('config_updated');
       socket.off('game_started');
       socket.off('category_added');
@@ -229,6 +244,7 @@ export function useSocket() {
       socket.off('psychic_target');
       socket.off('clue_submitted');
       socket.off('power_offered');
+      socket.off('power_queued');
       socket.off('power_activated');
       socket.off('bloqueo_applied');
       socket.off('guess_submitted');

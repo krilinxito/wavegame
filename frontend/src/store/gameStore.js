@@ -8,6 +8,7 @@ const useGameStore = create((set, get) => ({
   round: null,
   category: null,
   myPower: null,         // { roundPowerId, power }
+  myPowerQueued: false,  // true cuando el jugador encoló su poder y espera la adivinación
   revealData: null,      // { targetPct, guesses, activePowers }
   gameOver: null,        // { winner, finalScores }
   noCategories: false,
@@ -25,6 +26,7 @@ const useGameStore = create((set, get) => ({
   setRound: (round) => set({ round }),
   setCategory: (category) => set({ category }),
   setMyPower: (myPower) => set({ myPower }),
+  setMyPowerQueued: (myPowerQueued) => set({ myPowerQueued }),
   setRevealData: (revealData) => set({ revealData }),
   setGameOver: (gameOver) => set({ gameOver }),
   setCategories: (categories) => set({ categories }),
@@ -61,14 +63,14 @@ const useGameStore = create((set, get) => ({
   })),
 
   clearRound: () => set({
-    round: null, category: null, myPower: null,
+    round: null, category: null, myPower: null, myPowerQueued: false,
     revealData: null, activePowers: [], submittedGuesses: [],
     teamRounds: {}, allTeamRoundsDone: false,
   }),
 
   reset: () => set({
     game: null, players: [], myPlayer: null, round: null,
-    category: null, myPower: null, revealData: null,
+    category: null, myPower: null, myPowerQueued: false, revealData: null,
     gameOver: null, noCategories: false, categories: [], activePowers: [],
     teamRounds: {}, allTeamRoundsDone: false,
   }),

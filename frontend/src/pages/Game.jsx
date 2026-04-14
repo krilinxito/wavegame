@@ -5,6 +5,7 @@ import ClueGiving from '../components/round/ClueGiving';
 import Guessing from '../components/round/Guessing';
 import Revealing from '../components/round/Revealing';
 import PowerCard from '../components/powers/PowerCard';
+import PowerToast from '../components/powers/PowerToast';
 import Leaderboard from '../components/shared/Leaderboard';
 import ReactionBar from '../components/shared/ReactionBar';
 import Button from '../components/shared/Button';
@@ -252,7 +253,7 @@ export default function Game() {
             : <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Preparando ronda...</div>
           }
         </div>
-        <div style={{ padding: '20px 14px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 18px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
           {isTeamsMode && (
             <OtherTeamsStatus
               teamRounds={teamRounds}
@@ -261,7 +262,7 @@ export default function Game() {
               allTeamRoundsDone={allTeamRoundsDone}
             />
           )}
-          <Leaderboard compact />
+          <Leaderboard />
         </div>
       </div>
     );
@@ -274,7 +275,7 @@ export default function Game() {
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--c-bg)',
-      display: 'grid', gridTemplateColumns: '1fr 210px', gridTemplateRows: 'auto 1fr',
+      display: 'grid', gridTemplateColumns: '1fr 280px', gridTemplateRows: 'auto 1fr',
     }}>
       {/* Header */}
       <div style={{
@@ -338,7 +339,7 @@ export default function Game() {
       </div>
 
       {/* Sidebar */}
-      <div style={{ padding: '20px 14px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
+      <div style={{ padding: '20px 18px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
         {isTeamsMode && (
           <OtherTeamsStatus
             teamRounds={teamRounds}
@@ -351,6 +352,7 @@ export default function Game() {
       </div>
 
       <PowerCard />
+      <PowerToast />
       <ReactionBar />
     </div>
   );
