@@ -31,10 +31,12 @@ export default function PowerCard() {
   // Reset used state when a new power is offered (new round)
   useEffect(() => { setUsed(false); setSelectedTarget(null); }, [myPower?.roundPowerId]);
 
-  if (game?.mode === 'teams' || round?.status !== 'guessing') return null;
+  if (game?.mode === 'teams') return null;
+  if (round?.status !== 'guessing' && round?.status !== 'clue_giving') return null;
 
-  // Mala suerte placeholder
+  // Mala suerte placeholder — solo visible cuando ya es la fase de adivinación
   if (!myPower || myPower.power === null) {
+    if (round?.status !== 'guessing') return null;
     return (
       <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50, background: 'var(--c-surface)', border: '1px solid var(--c-border2)', borderRadius: 16, padding: '10px 16px', fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 20 }}>🎲</span> Mala suerte, sin poder esta ronda

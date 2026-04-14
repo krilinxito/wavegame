@@ -25,7 +25,7 @@ const REASON_LABELS = {
 };
 
 export default function Revealing() {
-  const { revealData, players, round, category, game, myPlayer } = useGameStore();
+  const { revealData, players, round, category, game, myPlayer, submittedGuesses } = useGameStore();
 
   const guesses = revealData?.guesses ?? [];
   const myResult = guesses.find(g => g.playerId === myPlayer?.id && g.guessPct !== null);
@@ -46,6 +46,7 @@ export default function Revealing() {
   if (!revealData) return null;
 
   const { targetPct, activePowers } = revealData;
+  const myGotBullseye = myResult?.reason === 'bullseye';
   const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
   // Exclude the psychic's scoring entry (shown separately); keep everyone else including basta non-guessers (guessPct null)
   const sorted = [...guesses].filter(g => g.playerId !== round?.psychic_id).sort((a, b) => b.scoreDelta - a.scoreDelta);
@@ -72,6 +73,30 @@ export default function Revealing() {
         players={players}
         revealData={revealData}
       />
+
+      {/* Bullseye free power reward banner */}
+      {myGotBullseye && game?.mode !== 'teams' && (
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
+          style={{
+            width: '100%', maxWidth: 480,
+            background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(239,68,68,0.1))',
+            border: '2px solid #fbbf2466',
+            borderRadius: 14, padding: '14px 20px',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}
+        >
+          <span style={{ fontSize: 32 }}>🎯</span>
+          <div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 18, color: '#fbbf24' }}>¡Bullseye! Poder gratis</div>
+            <div style={{ fontSize: 13, color: 'var(--c-muted)', marginTop: 2 }}>
+              Vas a recibir un poder gratis al inicio de la próxima ronda
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Psychic result */}
       {psychicResult && (() => {
@@ -139,6 +164,50 @@ export default function Revealing() {
           );
         })}
       </motion.div>
+
+      {/* Basta arrival order with ms */}
+      {game?.mode === 'basta' && submittedGuesses.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+          style={{ width: '100%', maxWidth: 480 }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            ⚡ Orden de llegada
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {(() => {
+              const firstTs = submittedGuesses[0]?.submittedAt ?? null;
+              return submittedGuesses.map((g, i) => {
+                const delta = (firstTs && g.submittedAt && i > 0) ? g.submittedAt - firstTs : null;
+                return (
+                  <motion.div key={g.playerId}
+                    initial={{ x: -16, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.9 + i * 0.08 }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: i === 0 ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${i === 0 ? '#fbbf2444' : 'rgba(255,255,255,0.07)'}`,
+                      borderRadius: 10, padding: '8px 14px',
+                    }}
+                  >
+                    <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: i === 0 ? '#fbbf24' : 'var(--c-muted)', minWidth: 22 }}>
+                      {i + 1}
+                    </span>
+                    <span style={{ fontWeight: 700, color: i === 0 ? '#fbbf24' : 'var(--c-text)', fontSize: 14, flex: 1 }}>
+                      {g.playerName}
+                    </span>
+                    <span style={{ fontSize: 13, fontFamily: 'Fredoka One' }}>
+                      {i === 0
+                        ? <span style={{ color: '#fbbf24' }}>⚡ BASTA</span>
+                        : delta !== null && <span style={{ color: 'var(--c-muted)' }}>+{delta}ms</span>
+                      }
+                    </span>
+                  </motion.div>
+                );
+              });
+            })()}
+          </div>
+        </motion.div>
+      )}
 
       {activePowers?.length > 0 && (
         <motion.div

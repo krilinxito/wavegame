@@ -326,7 +326,7 @@ async function startNextRound(io, roomCode, gameId, mode) {
   for (const [playerId, offer] of Object.entries(powerOffers)) {
     const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
     if (pRows[0]?.socket_id) {
-      io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power });
+      io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
     }
   }
 }
@@ -408,7 +408,7 @@ async function startTeamsRound(io, roomCode, gameId) {
     for (const [playerId, offer] of Object.entries(powerOffers)) {
       const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
       if (pRows[0]?.socket_id) {
-        io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power });
+        io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
       }
     }
   }

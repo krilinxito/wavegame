@@ -15,8 +15,8 @@ module.exports = function powerHandlers(io, socket) {
       const roundId = rpRows[0].round_id;
       const round = await getRound(roundId);
 
-      if (round.status !== 'guessing') {
-        return socket.emit('error', { code: 'WRONG_PHASE', message: 'Solo podés usar poderes durante la fase de adivinación' });
+      if (round.status !== 'guessing' && round.status !== 'clue_giving') {
+        return socket.emit('error', { code: 'WRONG_PHASE', message: 'Solo podés usar poderes antes o durante la adivinación' });
       }
 
       const effect = await activatePower(roundPowerId, playerId, targetPlayerId || null, !!isFree);

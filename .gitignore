@@ -22,3 +22,6 @@ npm-debug.log*
 
 # Docker volumes (local dev data)
 wave_db_data/
+
+# Dev notes (local only)
+.dev/
