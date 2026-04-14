@@ -249,15 +249,34 @@ module.exports = function lobbyHandlers(io, socket) {
 
   // Disconnect: mark player as disconnected
   socket.on('disconnect', async () => {
-    if (socket.data.playerId) {
-      try {
-        await updatePlayerSocket(socket.data.playerId, null, false);
-        if (socket.data.roomCode) {
-          socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
-        }
-      } catch (err) {
-        console.error('disconnect error:', err);
+    if (!socket.data.playerId) return;
+    try {
+      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [socket.data.playerId]);
+      const player = rows[0];
+
+      await updatePlayerSocket(socket.data.playerId, null, false);
+
+      if (socket.data.roomCode) {
+        socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
       }
+
+      // If the host left, transfer host to another connected player
+      if (player?.is_host && socket.data.gameId) {
+        const [candidates] = await pool.execute(
+          'SELECT * FROM players WHERE game_id=? AND id!=? AND connected=TRUE ORDER BY turn_order ASC LIMIT 1',
+          [socket.data.gameId, socket.data.playerId]
+        );
+        if (candidates.length) {
+          const newHost = candidates[0];
+          await pool.execute('UPDATE players SET is_host=FALSE WHERE id=?', [socket.data.playerId]);
+          await pool.execute('UPDATE players SET is_host=TRUE WHERE id=?', [newHost.id]);
+          if (socket.data.roomCode) {
+            io.to(socket.data.roomCode).emit('host_changed', { newHostId: newHost.id });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('disconnect error:', err);
     }
   });
 };

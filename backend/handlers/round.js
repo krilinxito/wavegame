@@ -1,7 +1,7 @@
 const pool = require('../db');
 const { getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone } = require('../services/roundService');
 const { computeScore, resolveBasta } = require('../services/scoringService');
-const { getActivePowers } = require('../services/powerService');
+const { getActivePowers, applyQueuedPowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
 const { checkWinCondition, getGame } = require('../services/gameService');
 const uuidv4 = () => require('crypto').randomUUID();
@@ -20,6 +20,8 @@ module.exports = function roundHandlers(io, socket) {
         return socket.emit('error', { code: 'INVALID_CLUE', message: 'La pista no puede estar vacía' });
 
       await setClue(roundId, clue);
+      // Auto-activate powers queued during clue_giving phase
+      await applyQueuedPowers(io, roundId, socket.data.roomCode);
       io.to(socket.data.roomCode).emit('clue_submitted', { roundId, clue: clue.trim() });
     } catch (err) {
       socket.emit('error', { code: 'CLUE_ERROR', message: err.message });

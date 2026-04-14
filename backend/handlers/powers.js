@@ -1,22 +1,59 @@
 const pool = require('../db');
-const { activatePower } = require('../services/powerService');
+const { activatePower, queuePower } = require('../services/powerService');
 const { getPlayersForGame } = require('../services/playerService');
 const { getRound } = require('../services/roundService');
 
 module.exports = function powerHandlers(io, socket) {
 
-  socket.on('activate_power', async ({ roundPowerId, targetPlayerId, isFree }) => {
+  // Queue a power during clue_giving — effect fires when guessing starts
+  socket.on('queue_power', async ({ roundPowerId, targetPlayerId, isFree }) => {
     try {
       const playerId = socket.data.playerId;
 
-      // Validate round is in guessing phase
       const [rpRows] = await pool.execute('SELECT round_id FROM round_powers WHERE id=?', [roundPowerId]);
       if (!rpRows.length) return;
       const roundId = rpRows[0].round_id;
       const round = await getRound(roundId);
 
-      if (round.status !== 'guessing' && round.status !== 'clue_giving') {
-        return socket.emit('error', { code: 'WRONG_PHASE', message: 'Solo podés usar poderes antes o durante la adivinación' });
+      if (round.status !== 'clue_giving') {
+        return socket.emit('error', { code: 'WRONG_PHASE', message: 'Solo podés encolar poderes durante la pista' });
+      }
+
+      const effect = await queuePower(roundPowerId, playerId, targetPlayerId || null, !!isFree);
+
+      // Confirm to the activator only
+      socket.emit('power_queued', {
+        roundPowerId,
+        powerName: effect.powerName,
+      });
+
+      // Update scores to reflect cost deduction
+      const players = await getPlayersForGame(round.game_id);
+      io.to(socket.data.roomCode).emit('scores_updated', { players });
+
+    } catch (err) {
+      if (err.message === 'INSUFFICIENT_POINTS') {
+        socket.emit('error', { code: 'INSUFFICIENT_POINTS', message: 'No tenés suficientes puntos para este poder' });
+      } else if (err.message === 'POWER_TYPE_ALREADY_USED') {
+        socket.emit('error', { code: 'POWER_TYPE_ALREADY_USED', message: 'Este tipo de poder ya fue usado esta ronda' });
+      } else {
+        socket.emit('error', { code: 'POWER_ERROR', message: err.message });
+      }
+    }
+  });
+
+  // Activate a power immediately — only allowed during guessing phase
+  socket.on('activate_power', async ({ roundPowerId, targetPlayerId, isFree }) => {
+    try {
+      const playerId = socket.data.playerId;
+
+      const [rpRows] = await pool.execute('SELECT round_id FROM round_powers WHERE id=?', [roundPowerId]);
+      if (!rpRows.length) return;
+      const roundId = rpRows[0].round_id;
+      const round = await getRound(roundId);
+
+      if (round.status !== 'guessing') {
+        return socket.emit('error', { code: 'WRONG_PHASE', message: 'La activación inmediata es solo durante la adivinación. En la fase de pista usá "Preparar"' });
       }
 
       const effect = await activatePower(roundPowerId, playerId, targetPlayerId || null, !!isFree);
@@ -81,6 +118,8 @@ module.exports = function powerHandlers(io, socket) {
     } catch (err) {
       if (err.message === 'INSUFFICIENT_POINTS') {
         socket.emit('error', { code: 'INSUFFICIENT_POINTS', message: 'No tenés suficientes puntos para este poder' });
+      } else if (err.message === 'POWER_TYPE_ALREADY_USED') {
+        socket.emit('error', { code: 'POWER_TYPE_ALREADY_USED', message: 'Este tipo de poder ya fue usado esta ronda' });
       } else {
         socket.emit('error', { code: 'POWER_ERROR', message: err.message });
       }
