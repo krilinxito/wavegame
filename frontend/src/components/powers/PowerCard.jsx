@@ -50,117 +50,104 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
     else              hoverLabel = isClueGiving ? 'Reservar' : 'Usar';
   }
 
+  // Badge content (rendered outside the button to avoid overflow:hidden clipping)
+  let badge = null;
+  if (isFree && !purchased && !alreadyUsed)
+    badge = <span style={{ background: '#fbbf24', color: '#000', fontSize: 8, fontWeight: 800, borderRadius: 6, padding: '1px 4px' }}>FREE</span>;
+  else if (queued)
+    badge = <span style={{ background: color, color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 6, padding: '1px 4px' }}>⏳</span>;
+  else if (alreadyUsed)
+    badge = <span style={{ background: 'rgba(255,255,255,0.15)', color: 'var(--c-muted)', fontSize: 8, fontWeight: 700, borderRadius: 6, padding: '1px 4px' }}>✓</span>;
+  else if (purchased)
+    badge = <span style={{ background: color, color: '#fff', fontSize: 8, fontWeight: 800, borderRadius: 6, padding: '1px 5px' }}>✔</span>;
+
   return (
-    <motion.button
-      whileHover={alreadyUsed ? {} : { scale: 1.06 }}
-      whileTap={alreadyUsed   ? {} : { scale: 0.94 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={alreadyUsed || queued ? undefined : onClick}
-      style={{
-        width: 68, height: 80,
-        background: alreadyUsed
-          ? 'rgba(255,255,255,0.04)'
-          : purchased
-            ? `linear-gradient(145deg, ${color}44, ${color}22)`
-            : `linear-gradient(145deg, ${color}33, ${color}18)`,
-        border: `2px solid ${
-          alreadyUsed ? 'rgba(255,255,255,0.1)'
-          : queued     ? `${color}88`
-          : purchased  ? color
-          :              `${color}88`
-        }`,
-        borderRadius: 14,
-        cursor: alreadyUsed || queued ? 'default' : 'pointer',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 3,
-        padding: '6px 4px 4px',
-        position: 'relative',
-        opacity: alreadyUsed ? 0.4 : 1,
-        boxShadow: alreadyUsed || queued ? 'none'
-          : purchased ? `0 4px 20px ${color}55`
-          : `0 2px 12px ${color}22`,
-        overflow: 'hidden',
-      }}
-    >
-      <span style={{ fontSize: 28, lineHeight: 1 }}>{icon}</span>
-      <span style={{
-        fontFamily: 'Fredoka One', fontSize: 10,
-        color: alreadyUsed ? 'var(--c-muted)' : '#fff',
-        textAlign: 'center', lineHeight: 1.1,
-        maxWidth: 60, padding: '0 2px',
-      }}>
-        {power.name}
-      </span>
-
-      {/* Price tag (bottom left, shown if not purchased) */}
-      {!purchased && !alreadyUsed && (
+    // Wrapper div handles the badge overflow outside the button
+    <div style={{ position: 'relative', width: 68, height: 80 }}>
+      <motion.button
+        whileHover={alreadyUsed ? {} : { scale: 1.06 }}
+        whileTap={alreadyUsed   ? {} : { scale: 0.94 }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={alreadyUsed || queued ? undefined : onClick}
+        style={{
+          width: '100%', height: '100%',
+          background: alreadyUsed
+            ? 'rgba(255,255,255,0.04)'
+            : purchased
+              ? `linear-gradient(145deg, ${color}44, ${color}22)`
+              : `linear-gradient(145deg, ${color}33, ${color}18)`,
+          border: `2px solid ${
+            alreadyUsed ? 'rgba(255,255,255,0.1)'
+            : queued     ? `${color}88`
+            : purchased  ? color
+            :              `${color}88`
+          }`,
+          borderRadius: 14,
+          cursor: alreadyUsed || queued ? 'default' : 'pointer',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 3,
+          padding: '6px 4px 4px',
+          position: 'relative',
+          opacity: alreadyUsed ? 0.4 : 1,
+          boxShadow: alreadyUsed || queued ? 'none'
+            : purchased ? `0 4px 20px ${color}55`
+            : `0 2px 12px ${color}22`,
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ fontSize: 28, lineHeight: 1 }}>{icon}</span>
         <span style={{
-          position: 'absolute', bottom: 4, left: 4,
-          fontSize: 9, fontFamily: 'Fredoka One',
-          color: isFree ? '#fbbf24' : `${color}dd`,
+          fontFamily: 'Fredoka One', fontSize: 10,
+          color: alreadyUsed ? 'var(--c-muted)' : '#fff',
+          textAlign: 'center', lineHeight: 1.1,
+          maxWidth: 60, padding: '0 2px',
         }}>
-          {isFree ? 'FREE' : `${power.cost}p`}
+          {power.name}
         </span>
-      )}
 
-      {/* Status badges (top right) */}
-      {isFree && !purchased && !alreadyUsed && (
-        <span style={{
-          position: 'absolute', top: -5, right: -5,
-          background: '#fbbf24', color: '#000',
-          fontSize: 8, fontWeight: 800,
-          borderRadius: 6, padding: '1px 4px',
-        }}>FREE</span>
-      )}
-      {queued && (
-        <span style={{
-          position: 'absolute', top: -5, right: -5,
-          background: color, color: '#fff',
-          fontSize: 9, fontWeight: 800,
-          borderRadius: 6, padding: '1px 4px',
-        }}>⏳</span>
-      )}
-      {alreadyUsed && (
-        <span style={{
-          position: 'absolute', top: -5, right: -5,
-          background: 'rgba(255,255,255,0.15)', color: 'var(--c-muted)',
-          fontSize: 8, fontWeight: 700,
-          borderRadius: 6, padding: '1px 4px',
-        }}>✓</span>
-      )}
-      {purchased && !queued && !alreadyUsed && (
-        <span style={{
-          position: 'absolute', top: -5, right: -5,
-          background: color, color: '#fff',
-          fontSize: 8, fontWeight: 800,
-          borderRadius: 6, padding: '1px 5px',
-        }}>✔</span>
-      )}
-
-      {/* Hover overlay label */}
-      <AnimatePresence>
-        {hovered && hoverLabel && !alreadyUsed && !queued && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'absolute', inset: 0,
-              background: `${color}cc`,
-              borderRadius: 12,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 800,
-              color: '#fff', textAlign: 'center',
-              padding: '0 4px', lineHeight: 1.2,
-            }}
-          >
-            {hoverLabel}
-          </motion.div>
+        {/* Price tag (bottom left, shown if not purchased) */}
+        {!purchased && !alreadyUsed && (
+          <span style={{
+            position: 'absolute', bottom: 4, left: 4,
+            fontSize: 9, fontFamily: 'Fredoka One',
+            color: isFree ? '#fbbf24' : `${color}dd`,
+          }}>
+            {isFree ? 'FREE' : `${power.cost}p`}
+          </span>
         )}
-      </AnimatePresence>
-    </motion.button>
+
+        {/* Hover overlay */}
+        <AnimatePresence>
+          {hovered && hoverLabel && !alreadyUsed && !queued && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute', inset: 0,
+                background: `${color}cc`,
+                borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 800,
+                color: '#fff', textAlign: 'center',
+                padding: '0 4px', lineHeight: 1.2,
+              }}
+            >
+              {hoverLabel}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.button>
+
+      {/* Badge fuera del botón para no ser cortado por overflow:hidden */}
+      {badge && (
+        <div style={{ position: 'absolute', top: -6, right: -6, zIndex: 1 }}>
+          {badge}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -35,7 +35,7 @@ function buildMessage(powerName, activatorName, targetName, isMyAction, isTarget
     }
     return {
       icon,
-      text: `${activatorName} usó cuartiles`,
+      text: 'Alguien usó cuartiles',
       subtext: 'Reveló el cuartil del target (solo para ellos)',
     };
   }
@@ -53,48 +53,48 @@ function buildMessage(powerName, activatorName, targetName, isMyAction, isTarget
     if (isTargetedAtMe) {
       return {
         icon,
-        text: `${activatorName} te envenenó`,
+        text: 'Alguien te envenenó',
         subtext: '−3 puntos extra si fallás',
         danger: true,
       };
     }
     if (isMyAction) {
-      return { icon, text: `Envenenaste a ${targetName}`, subtext: '−3 pts extra si falla' };
+      return { icon, text: 'Tiraste veneno', subtext: '−3 pts extra si falla' };
     }
-    return { icon, text: `${activatorName} envenenó a ${targetName}` };
+    return { icon, text: 'Alguien tiró veneno' };
   }
 
   if (powerName === 'bloqueo') {
     if (isTargetedAtMe) {
       return {
         icon,
-        text: `${activatorName} te bloqueó`,
+        text: 'Alguien te bloqueó',
         subtext: 'No podés adivinar esta ronda',
         danger: true,
       };
     }
     if (isMyAction) {
-      return { icon, text: `Bloqueaste a ${targetName}`, subtext: 'No puede adivinar esta ronda' };
+      return { icon, text: 'Bloqueaste a alguien', subtext: 'No puede adivinar esta ronda' };
     }
-    return { icon, text: `${activatorName} bloqueó a ${targetName}` };
+    return { icon, text: 'Alguien bloqueó a alguien' };
   }
 
   if (powerName === 'switch') {
     if (isTargetedAtMe) {
       return {
         icon,
-        text: `${activatorName} va a hacer switch con vos`,
+        text: 'Alguien va a hacer switch con vos',
         subtext: 'Se intercambian posiciones al revelar',
         warning: true,
       };
     }
     if (isMyAction) {
-      return { icon, text: `Switch con ${targetName}`, subtext: 'Intercambian posiciones al revelar' };
+      return { icon, text: 'Hiciste switch con alguien', subtext: 'Intercambian posiciones al revelar' };
     }
-    return { icon, text: `${activatorName} hará switch con ${targetName}` };
+    return { icon, text: 'Alguien hizo switch' };
   }
 
-  return { icon, text: `${activatorName} usó ${powerName}` };
+  return { icon, text: `Alguien usó ${powerName}` };
 }
 
 // Overlay flash when YOU are targeted
