@@ -140,7 +140,13 @@ async function applyQueuedPowers(io, roundId, roomCode) {
       }
     }
 
-    if (rp.name === 'veneno' || rp.name === 'switch') {
+    if (rp.name === 'veneno') {
+      broadcastEffect = { targetId: rp.target_player };
+      const { updatePlayerScore } = require('./playerService');
+      await updatePlayerScore(round.game_id, rp.target_player, -3);
+    }
+
+    if (rp.name === 'switch') {
       broadcastEffect = { targetId: rp.target_player };
     }
 

@@ -162,12 +162,6 @@ async function triggerReveal(io, socket, roundId) {
     });
   }
 
-  // Apply veneno side-effect (-3 to target)
-  const venomUsage = activePowers.find(p => p.powerName === 'veneno');
-  if (venomUsage?.targetId) {
-    await updatePlayerScore(round.game_id, venomUsage.targetId, -3);
-  }
-
   // Apply score deltas
   await saveScoreDeltas(roundId, scoreResults);
   for (const r of scoreResults) {

@@ -39,7 +39,7 @@ export function useSocket() {
       store.setRevealData(null);
       store.setMyPower(null);
       store.setGameOver(null);
-      useGameStore.setState({ activePowers: [], submittedGuesses: [], teamRounds: {}, allTeamRoundsDone: false });
+      useGameStore.setState({ activePowers: [], submittedGuesses: [], teamRounds: {}, allTeamRoundsDone: false, myPowerQueued: false, myPowerPurchased: false });
     });
 
     socket.on('team_rounds_started', ({ teamRounds }) => {
@@ -67,6 +67,8 @@ export function useSocket() {
         activePowers: [],
         submittedGuesses: [],
         allTeamRoundsDone: false,
+        myPowerQueued: false,
+        myPowerPurchased: false,
       });
     });
 

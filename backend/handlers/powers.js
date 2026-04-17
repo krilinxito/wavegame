@@ -100,7 +100,14 @@ module.exports = function powerHandlers(io, socket) {
         }
       }
 
-      if (effect.powerName === 'veneno' || effect.powerName === 'switch') {
+      if (effect.powerName === 'veneno') {
+        broadcastEffect = { targetId: targetPlayerId };
+        // Deduct -3 immediately from target
+        const { updatePlayerScore } = require('../services/playerService');
+        await updatePlayerScore(gameId, targetPlayerId, -3);
+      }
+
+      if (effect.powerName === 'switch') {
         broadcastEffect = { targetId: targetPlayerId };
       }
 
