@@ -1,8 +1,9 @@
-const pool = require('../db');
-const { getPlayersForGame, updatePlayerSocket } = require('../services/playerService');
+const cache = require('../cache/redis');
+const { getPlayersForGame } = require('../services/playerService');
 const { getGame, getGameByCode, updateGameConfig, startGame, rotatePsychic } = require('../services/gameService');
 const { createRound, getUnusedCategory, markCategoryUsed } = require('../services/roundService');
 const { offerPowers } = require('../services/powerService');
+
 const uuidv4 = () => require('crypto').randomUUID();
 
 module.exports = function lobbyHandlers(io, socket) {
@@ -17,40 +18,43 @@ module.exports = function lobbyHandlers(io, socket) {
 
       let player;
       if (playerId) {
-        // Reconnecting
-        const [rows] = await pool.execute('SELECT * FROM players WHERE id=? AND game_id=?', [playerId, game.id]);
-        player = rows[0];
+        player = await cache.getPlayer(game.id, playerId);
       }
 
       if (!player) {
-        // New player
-        const id = uuidv4();
-        const [existing] = await pool.execute('SELECT COUNT(*) as cnt FROM players WHERE game_id=?', [game.id]);
-        const isHost = existing[0].cnt === 0;
-        const turnOrder = existing[0].cnt;
-        await pool.execute(
-          'INSERT INTO players (id, game_id, display_name, photo_path, is_host, turn_order) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, game.id, (displayName || 'Player').trim().substring(0, 50), photoPath || null, isHost, turnOrder]
-        );
-        const [newRows] = await pool.execute('SELECT * FROM players WHERE id=?', [id]);
-        player = newRows[0];
+        const existingPlayers = await cache.getPlayers(game.id);
+        const isHost = existingPlayers.length === 0;
+        const turnOrder = existingPlayers.length;
+        player = {
+          id: uuidv4(),
+          game_id: game.id,
+          display_name: (displayName || 'Player').trim().substring(0, 50),
+          photo_path: photoPath || null,
+          score: 0,
+          team: null,
+          is_host: isHost,
+          is_spectator: false,
+          socket_id: socket.id,
+          connected: true,
+          turn_order: turnOrder,
+        };
+        await cache.setPlayer(game.id, player);
+      } else {
+        player.socket_id = socket.id;
+        player.connected = true;
+        await cache.setPlayer(game.id, player);
       }
 
-      await updatePlayerSocket(player.id, socket.id, true);
-      // Attach metadata to socket for disconnect handling
       socket.data.playerId = player.id;
       socket.data.gameId = game.id;
       socket.data.roomCode = roomCode;
 
       const allPlayers = await getPlayersForGame(game.id);
-      // In lobby, only show connected players; during game show everyone
       const players = game.status === 'lobby'
         ? allPlayers.filter(p => p.connected)
         : allPlayers;
-      const [categories] = await pool.execute(
-        'SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE game_id=? ORDER BY created_at',
-        [game.id]
-      );
+
+      const categories = await cache.getCategories(game.id);
 
       socket.emit('room_joined', { game, players, myPlayer: player, categories });
       socket.to(roomCode).emit('player_joined', { player: { ...player, socket_id: undefined } });
@@ -63,16 +67,11 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('update_player', async ({ playerId, displayName, photoPath }) => {
     try {
-      const updates = [];
-      const vals = [];
-      if (displayName) { updates.push('display_name=?'); vals.push(displayName.trim().substring(0, 50)); }
-      if (photoPath !== undefined) { updates.push('photo_path=?'); vals.push(photoPath); }
-      if (!updates.length) return;
-
-      vals.push(playerId);
-      await pool.execute(`UPDATE players SET ${updates.join(',')} WHERE id=?`, vals);
-      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-      const player = rows[0];
+      const player = await cache.getPlayer(socket.data.gameId, playerId);
+      if (!player) return;
+      if (displayName) player.display_name = displayName.trim().substring(0, 50);
+      if (photoPath !== undefined) player.photo_path = photoPath;
+      await cache.setPlayer(socket.data.gameId, player);
       io.to(socket.data.roomCode).emit('player_updated', { player });
     } catch (err) {
       socket.emit('error', { code: 'UPDATE_ERROR', message: err.message });
@@ -81,7 +80,7 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('host_update_config', async ({ gameId, mode, range_min, range_max, win_condition, win_value, guess_time }) => {
     try {
-      const player = await getPlayerFromSocket(socket.data.playerId);
+      const player = await cache.getPlayer(gameId, socket.data.playerId);
       if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede cambiar la config' });
 
       await updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time });
@@ -94,14 +93,18 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('add_category', async ({ gameId, term, left_extreme, right_extreme, playerId }) => {
     try {
-      const id = uuidv4();
-      await pool.execute(
-        'INSERT INTO categories (id, game_id, term, left_extreme, right_extreme, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, gameId, term.trim(), left_extreme.trim(), right_extreme.trim(), playerId]
-      );
-      // Send category to all in lobby
-      const [rows] = await pool.execute('SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE id=?', [id]);
-      io.to(socket.data.roomCode).emit('category_added', { category: rows[0] });
+      const category = {
+        id: uuidv4(),
+        game_id: gameId,
+        term: term.trim(),
+        left_extreme: left_extreme.trim(),
+        right_extreme: right_extreme.trim(),
+        created_by: playerId,
+        used: false,
+        created_at: Date.now(),
+      };
+      await cache.setCategory(gameId, category);
+      io.to(socket.data.roomCode).emit('category_added', { category });
     } catch (err) {
       socket.emit('error', { code: 'CATEGORY_ERROR', message: err.message });
     }
@@ -109,15 +112,13 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('remove_category', async ({ categoryId, playerId }) => {
     try {
-      // Only the creator or host can remove
-      const [rows] = await pool.execute('SELECT * FROM categories WHERE id=?', [categoryId]);
-      if (!rows.length) return;
-      const cat = rows[0];
-      const [playerRows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-      const player = playerRows[0];
+      const gameId = socket.data.gameId;
+      const cat = await cache.getCategory(gameId, categoryId);
+      if (!cat) return;
+      const player = await cache.getPlayer(gameId, playerId);
       if (cat.created_by !== playerId && !player?.is_host) return;
 
-      await pool.execute('DELETE FROM categories WHERE id=?', [categoryId]);
+      await cache.deleteCategory(gameId, categoryId);
       io.to(socket.data.roomCode).emit('category_removed', { categoryId });
     } catch (err) {
       socket.emit('error', { code: 'CATEGORY_ERROR', message: err.message });
@@ -126,8 +127,7 @@ module.exports = function lobbyHandlers(io, socket) {
 
   socket.on('host_start_game', async ({ gameId, playerId }) => {
     try {
-      const [playerRows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-      const player = playerRows[0];
+      const player = await cache.getPlayer(gameId, playerId);
       if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede iniciar' });
 
       const game = await getGame(gameId);
@@ -136,7 +136,6 @@ module.exports = function lobbyHandlers(io, socket) {
       const allPlayers = await getPlayersForGame(gameId);
 
       if (game.mode === 'teams') {
-        // Auto-spectate players not in a complete pair (team with 2 members)
         const teamCounts = {};
         for (const p of allPlayers) {
           if (p.team) teamCounts[p.team] = (teamCounts[p.team] || 0) + 1;
@@ -145,11 +144,12 @@ module.exports = function lobbyHandlers(io, socket) {
         if (completePairs === 0)
           return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Necesitás al menos una pareja completa para el modo Teams' });
 
-        // Spectate players in incomplete teams or with no team
         for (const p of allPlayers) {
           const inCompletePair = p.team && teamCounts[p.team] === 2;
           if (!inCompletePair && !p.is_spectator) {
-            await pool.execute('UPDATE players SET is_spectator=TRUE, team=NULL WHERE id=?', [p.id]);
+            p.is_spectator = true;
+            p.team = null;
+            await cache.setPlayer(gameId, p);
           }
         }
       } else {
@@ -162,7 +162,6 @@ module.exports = function lobbyHandlers(io, socket) {
       const updatedGame = await getGame(gameId);
       io.to(socket.data.roomCode).emit('game_started', { game: updatedGame });
 
-      // Start first round automatically
       await startNextRound(io, socket.data.roomCode, gameId, updatedGame.mode);
 
     } catch (err) {
@@ -175,29 +174,41 @@ module.exports = function lobbyHandlers(io, socket) {
     if (!socket.data.roomCode) return;
     const validEmojis = ['👏','🔥','😂','😮','💀','❤️','🎯','😎','🤣','😭','🥶','🤯','🫡','💯','🗿','🤡','👀','✨','🎉','💥','🍆','🫠','🥵','😈'];
     if (!validEmojis.includes(emoji)) return;
-    io.to(socket.data.roomCode).emit('reaction_received', {
-      emoji,
-      playerId: socket.data.playerId,
-    });
+    io.to(socket.data.roomCode).emit('reaction_received', { emoji, playerId: socket.data.playerId });
   });
 
   socket.on('return_to_lobby', async ({ gameId }) => {
     try {
-      const [hostRows] = await pool.execute('SELECT id FROM players WHERE game_id=? AND is_host=TRUE', [gameId]);
-      if (hostRows[0]?.id !== socket.data.playerId) return;
+      const hostPlayer = await cache.getPlayer(gameId, socket.data.playerId);
+      if (!hostPlayer?.is_host) return;
 
-      await pool.execute("UPDATE games SET status='lobby', current_round=0, psychic_id=NULL WHERE id=?", [gameId]);
-      await pool.execute('UPDATE players SET score=0 WHERE game_id=?', [gameId]);
-      await pool.execute('UPDATE categories SET used=FALSE WHERE game_id=?', [gameId]);
-      await pool.execute('DELETE FROM rounds WHERE game_id=?', [gameId]);
-
+      // Reset game state
       const game = await getGame(gameId);
-      const players = await getPlayersForGame(game.id);
-      const [categories] = await pool.execute(
-        'SELECT id, term, left_extreme, right_extreme, created_by FROM categories WHERE game_id=? ORDER BY created_at',
-        [gameId]
-      );
-      io.to(socket.data.roomCode).emit('game_reset', { game, players, categories });
+      game.status = 'lobby';
+      game.current_round = 0;
+      game.psychic_id = null;
+      await cache.setGame(game);
+
+      // Reset player scores
+      const allPlayers = await getPlayersForGame(gameId);
+      for (const p of allPlayers) {
+        p.score = 0;
+        await cache.setPlayer(gameId, p);
+      }
+
+      // Reset categories
+      const categories = await cache.getCategories(gameId);
+      for (const cat of categories) {
+        cat.used = false;
+        await cache.setCategory(gameId, cat);
+      }
+
+      // Cleanup all round data
+      await cache.cleanupRounds(gameId);
+
+      const updatedPlayers = await getPlayersForGame(gameId);
+      const updatedCategories = await cache.getCategories(gameId);
+      io.to(socket.data.roomCode).emit('game_reset', { game, players: updatedPlayers, categories: updatedCategories });
     } catch (err) {
       socket.emit('error', { code: 'RESET_ERROR', message: err.message });
     }
@@ -206,20 +217,22 @@ module.exports = function lobbyHandlers(io, socket) {
   socket.on('set_team', async ({ team }) => {
     try {
       const playerId = socket.data.playerId;
+      const gameId = socket.data.gameId;
       if (team !== null && (typeof team !== 'number' || team < 1)) return;
 
       if (team !== null) {
-        const [members] = await pool.execute(
-          'SELECT COUNT(*) as cnt FROM players WHERE game_id=? AND team=? AND id!=?',
-          [socket.data.gameId, team, playerId]
-        );
-        if (members[0].cnt >= 2)
+        const players = await cache.getPlayers(gameId);
+        const memberCount = players.filter(p => p.team === team && p.id !== playerId).length;
+        if (memberCount >= 2)
           return socket.emit('error', { code: 'TEAM_FULL', message: 'Esa pareja ya está completa' });
       }
 
-      await pool.execute('UPDATE players SET team=?, is_spectator=FALSE WHERE id=?', [team, playerId]);
-      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-      io.to(socket.data.roomCode).emit('player_updated', { player: rows[0] });
+      const player = await cache.getPlayer(gameId, playerId);
+      if (!player) return;
+      player.team = team;
+      player.is_spectator = false;
+      await cache.setPlayer(gameId, player);
+      io.to(socket.data.roomCode).emit('player_updated', { player });
     } catch (err) {
       socket.emit('error', { code: 'TEAM_ERROR', message: err.message });
     }
@@ -228,11 +241,13 @@ module.exports = function lobbyHandlers(io, socket) {
   socket.on('toggle_spectator', async () => {
     try {
       const playerId = socket.data.playerId;
-      const [rows] = await pool.execute('SELECT is_spectator FROM players WHERE id=?', [playerId]);
-      const newVal = rows[0]?.is_spectator ? 0 : 1;
-      await pool.execute('UPDATE players SET is_spectator=?, team=NULL WHERE id=?', [newVal, playerId]);
-      const [updated] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-      io.to(socket.data.roomCode).emit('player_updated', { player: updated[0] });
+      const gameId = socket.data.gameId;
+      const player = await cache.getPlayer(gameId, playerId);
+      if (!player) return;
+      player.is_spectator = !player.is_spectator;
+      player.team = null;
+      await cache.setPlayer(gameId, player);
+      io.to(socket.data.roomCode).emit('player_updated', { player });
     } catch (err) {
       socket.emit('error', { code: 'SPECTATOR_ERROR', message: err.message });
     }
@@ -247,31 +262,31 @@ module.exports = function lobbyHandlers(io, socket) {
     }
   });
 
-  // Disconnect: mark player as disconnected
   socket.on('disconnect', async () => {
     if (!socket.data.playerId) return;
     try {
-      const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [socket.data.playerId]);
-      const player = rows[0];
+      const gameId = socket.data.gameId;
+      const player = await cache.getPlayer(gameId, socket.data.playerId);
+      if (!player) return;
 
-      await updatePlayerSocket(socket.data.playerId, null, false);
+      player.socket_id = null;
+      player.connected = false;
+      await cache.setPlayer(gameId, player);
 
       if (socket.data.roomCode) {
         socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
       }
 
-      // If the host left, transfer host to another connected player
-      if (player?.is_host && socket.data.gameId) {
-        const [candidates] = await pool.execute(
-          'SELECT * FROM players WHERE game_id=? AND id!=? AND connected=TRUE ORDER BY turn_order ASC LIMIT 1',
-          [socket.data.gameId, socket.data.playerId]
-        );
-        if (candidates.length) {
-          const newHost = candidates[0];
-          await pool.execute('UPDATE players SET is_host=FALSE WHERE id=?', [socket.data.playerId]);
-          await pool.execute('UPDATE players SET is_host=TRUE WHERE id=?', [newHost.id]);
+      if (player.is_host && gameId) {
+        const allPlayers = await cache.getPlayers(gameId);
+        const nextHost = allPlayers.find(p => p.id !== socket.data.playerId && p.connected);
+        if (nextHost) {
+          player.is_host = false;
+          await cache.setPlayer(gameId, player);
+          nextHost.is_host = true;
+          await cache.setPlayer(gameId, nextHost);
           if (socket.data.roomCode) {
-            io.to(socket.data.roomCode).emit('host_changed', { newHostId: newHost.id });
+            io.to(socket.data.roomCode).emit('host_changed', { newHostId: nextHost.id });
           }
         }
       }
@@ -280,12 +295,6 @@ module.exports = function lobbyHandlers(io, socket) {
     }
   });
 };
-
-async function getPlayerFromSocket(playerId) {
-  if (!playerId) return null;
-  const [rows] = await pool.execute('SELECT * FROM players WHERE id=?', [playerId]);
-  return rows[0] || null;
-}
 
 async function startNextRound(io, roomCode, gameId, mode) {
   if (mode === 'teams') {
@@ -298,10 +307,10 @@ async function startNextRound(io, roomCode, gameId, mode) {
   const game = await getGame(gameId);
   const category = await getUnusedCategory(gameId);
   if (!category) {
-    const allPlayers = await getPlayersForGame(gameId);
-    const active = allPlayers.filter(p => !p.is_spectator);
-    const sorted = [...active].sort((a, b) => b.score - a.score);
-    await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+    const players = await cache.getPlayers(gameId);
+    const sorted = players.filter(p => !p.is_spectator).sort((a, b) => b.score - a.score);
+    game.status = 'finished';
+    await cache.setGame(game);
     io.to(roomCode).emit('game_over', {
       winner: sorted[0] || null, winnerTeam: null, teamScore: null,
       finalScores: sorted, reason: 'no_categories',
@@ -309,20 +318,15 @@ async function startNextRound(io, roomCode, gameId, mode) {
     return;
   }
 
-  await markCategoryUsed(category.id);
+  await markCategoryUsed(gameId, category.id);
   const round = await createRound(gameId, psychic.id, game.current_round);
 
-  const players = await getPlayersForGame(gameId);
-  const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected).map(p => p.id);
+  const players = await cache.getPlayers(gameId);
+  const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected && !p.is_spectator).map(p => p.id);
 
   // Players who got bullseye last round get a guaranteed power
-  const [bullseyeRows] = await pool.execute(
-    `SELECT sl.player_id FROM score_log sl
-     JOIN rounds r ON sl.round_id = r.id
-     WHERE sl.game_id=? AND sl.reason='bullseye' AND r.round_number=?`,
-    [gameId, game.current_round - 1]
-  );
-  const guaranteedIds = new Set(bullseyeRows.map(r => r.player_id));
+  const bullseyeIds = await cache.client.smembers(`bullseye_winners:${gameId}:${game.current_round - 1}`);
+  const guaranteedIds = new Set(bullseyeIds);
 
   const powerOffers = await offerPowers(round.id, nonPsychicIds, mode, guaranteedIds);
 
@@ -337,22 +341,21 @@ async function startNextRound(io, roomCode, gameId, mode) {
     psychicName: psychic.display_name,
   });
 
-  const [psychicRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [psychic.id]);
-  if (psychicRows[0]?.socket_id) {
-    io.to(psychicRows[0].socket_id).emit('psychic_target', { roundId: round.id, targetPct: parseFloat(round.target_pct) });
+  if (psychic.socket_id) {
+    io.to(psychic.socket_id).emit('psychic_target', { roundId: round.id, targetPct: round.target_pct });
   }
 
   for (const [playerId, offer] of Object.entries(powerOffers)) {
-    const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
-    if (pRows[0]?.socket_id) {
-      io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
+    const p = players.find(pl => pl.id === playerId);
+    if (p?.socket_id) {
+      io.to(p.socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
     }
   }
 }
 
 async function startTeamsRound(io, roomCode, gameId) {
   const game = await getGame(gameId);
-  const allPlayers = await getPlayersForGame(gameId);
+  const allPlayers = await cache.getPlayers(gameId);
 
   const teamNums = [...new Set(
     allPlayers.filter(p => p.team && !p.is_spectator).map(p => p.team)
@@ -361,7 +364,8 @@ async function startTeamsRound(io, roomCode, gameId) {
   if (!teamNums.length) return;
 
   const newRoundNumber = game.current_round + 1;
-  await pool.execute('UPDATE games SET current_round=? WHERE id=?', [newRoundNumber, gameId]);
+  game.current_round = newRoundNumber;
+  await cache.setGame(game);
 
   const teamRoundsData = [];
 
@@ -370,26 +374,25 @@ async function startTeamsRound(io, roomCode, gameId) {
     if (!category) {
       const active = allPlayers.filter(p => !p.is_spectator);
       const sorted = [...active].sort((a, b) => b.score - a.score);
-      await pool.execute("UPDATE games SET status='finished' WHERE id=?", [gameId]);
+      game.status = 'finished';
+      await cache.setGame(game);
       io.to(roomCode).emit('game_over', {
         winner: sorted[0] || null, winnerTeam: null, teamScore: null,
         finalScores: sorted, reason: 'no_categories',
       });
       return;
     }
-    await markCategoryUsed(category.id);
+    await markCategoryUsed(gameId, category.id);
 
-    // All team members for rotation (ignoring connected status so it stays fair)
     const allTeamPlayers = allPlayers.filter(p => p.team === teamNum && !p.is_spectator);
     const connectedTeamPlayers = allTeamPlayers.filter(p => p.connected);
     if (!allTeamPlayers.length) continue;
 
-    // Rotate psychic within team based on last round history
-    const [lastRound] = await pool.execute(
-      'SELECT psychic_id FROM rounds WHERE game_id=? AND team_num=? ORDER BY round_number DESC LIMIT 1',
-      [gameId, teamNum]
-    );
-    const lastPsychicId = lastRound[0]?.psychic_id ?? null;
+    // Rotate psychic within team
+    const gameRounds = await cache.getRoundsForGame(gameId);
+    const pastTeamRounds = gameRounds.filter(r => r.team_num === teamNum).sort((a, b) => b.round_number - a.round_number);
+    const lastPsychicId = pastTeamRounds[0]?.psychic_id ?? null;
+
     let psychic;
     if (!lastPsychicId) {
       psychic = allTeamPlayers[0];
@@ -405,7 +408,6 @@ async function startTeamsRound(io, roomCode, gameId) {
     teamRoundsData.push({ round, category, psychic, teamNum, powerOffers });
   }
 
-  // Broadcast all team rounds to everyone
   const roundsPublic = teamRoundsData.map(({ round, category, psychic, teamNum }) => ({
     teamNum,
     round: { ...round, target_pct: undefined },
@@ -418,16 +420,14 @@ async function startTeamsRound(io, roomCode, gameId) {
   }));
   io.to(roomCode).emit('team_rounds_started', { teamRounds: roundsPublic });
 
-  // Send targets and power offers individually
   for (const { round, psychic, powerOffers } of teamRoundsData) {
-    const [psychicRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [psychic.id]);
-    if (psychicRows[0]?.socket_id) {
-      io.to(psychicRows[0].socket_id).emit('psychic_target', { roundId: round.id, targetPct: parseFloat(round.target_pct) });
+    if (psychic.socket_id) {
+      io.to(psychic.socket_id).emit('psychic_target', { roundId: round.id, targetPct: round.target_pct });
     }
     for (const [playerId, offer] of Object.entries(powerOffers)) {
-      const [pRows] = await pool.execute('SELECT socket_id FROM players WHERE id=?', [playerId]);
-      if (pRows[0]?.socket_id) {
-        io.to(pRows[0].socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
+      const p = allPlayers.find(pl => pl.id === playerId);
+      if (p?.socket_id) {
+        io.to(p.socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
       }
     }
   }

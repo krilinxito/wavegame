@@ -1,10 +1,9 @@
-const pool = require('../db');
+const cache = require('../cache/redis');
 const { getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone } = require('../services/roundService');
 const { computeScore, resolveBasta } = require('../services/scoringService');
 const { getActivePowers, applyQueuedPowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
 const { checkWinCondition, getGame } = require('../services/gameService');
-const uuidv4 = () => require('crypto').randomUUID();
 
 module.exports = function roundHandlers(io, socket) {
 
@@ -20,7 +19,6 @@ module.exports = function roundHandlers(io, socket) {
         return socket.emit('error', { code: 'INVALID_CLUE', message: 'La pista no puede estar vacía' });
 
       await setClue(roundId, clue);
-      // Auto-activate powers queued during clue_giving phase
       await applyQueuedPowers(io, roundId, socket.data.roomCode);
       io.to(socket.data.roomCode).emit('clue_submitted', { roundId, clue: clue.trim() });
     } catch (err) {
@@ -31,6 +29,7 @@ module.exports = function roundHandlers(io, socket) {
   socket.on('submit_guess', async ({ roundId, guessPct }) => {
     try {
       const playerId = socket.data.playerId;
+      const gameId = socket.data.gameId;
       const round = await getRound(roundId);
       if (!round) return socket.emit('error', { code: 'NOT_FOUND', message: 'Ronda no encontrada' });
       if (round.status !== 'guessing') return socket.emit('error', { code: 'WRONG_PHASE', message: 'No es la fase de adivinanza' });
@@ -38,49 +37,40 @@ module.exports = function roundHandlers(io, socket) {
 
       // Teams mode: only players on the same team can guess this round
       if (round.team_num) {
-        const [playerTeamRow] = await pool.execute('SELECT team FROM players WHERE id=?', [playerId]);
-        if (playerTeamRow[0]?.team !== round.team_num) {
+        const player = await cache.getPlayer(gameId, playerId);
+        if (player?.team !== round.team_num)
           return socket.emit('error', { code: 'WRONG_TEAM', message: 'Esta ronda no es de tu equipo' });
-        }
       }
 
-      // Validate guess range
       const pct = parseFloat(guessPct);
       if (isNaN(pct) || pct < 0 || pct > 1) return socket.emit('error', { code: 'INVALID_GUESS', message: 'Posición inválida (0-1)' });
 
       // Check if player is bloqueo'd
-      const [blockedRow] = await pool.execute(
-        `SELECT rp.id FROM round_powers rp JOIN powers p ON rp.power_id=p.id
-         WHERE rp.round_id=? AND p.name='bloqueo' AND rp.target_player=? AND rp.activated=TRUE`,
-        [roundId, playerId]
-      );
-      if (blockedRow.length > 0) return socket.emit('error', { code: 'BLOCKED', message: 'Estás bloqueado esta ronda' });
+      const roundPowers = await cache.getRoundPowers(roundId);
+      const isBlocked = roundPowers.some(rp => rp.name === 'bloqueo' && rp.target_player === playerId && rp.activated);
+      if (isBlocked) return socket.emit('error', { code: 'BLOCKED', message: 'Estás bloqueado esta ronda' });
 
       // Check duplicate
-      const [existing] = await pool.execute('SELECT id FROM guesses WHERE round_id=? AND player_id=?', [roundId, playerId]);
-      if (existing.length) return socket.emit('error', { code: 'ALREADY_GUESSED', message: 'Ya adivinaste' });
+      const existingGuess = await cache.getGuess(roundId, playerId);
+      if (existingGuess) return socket.emit('error', { code: 'ALREADY_GUESSED', message: 'Ya adivinaste' });
 
       const game = await getGame(round.game_id);
-      const [guessCount] = await pool.execute('SELECT COUNT(*) as cnt FROM guesses WHERE round_id=?', [roundId]);
+      const guesses = await getGuesses(roundId);
 
-      // BASTA: only the first guess is allowed
-      if (game.mode === 'basta' && guessCount[0].cnt > 0) {
+      if (game.mode === 'basta' && guesses.length > 0)
         return socket.emit('error', { code: 'BASTA_CALLED', message: 'Ya se dijo BASTA' });
-      }
 
-      const isFirst = game.mode === 'basta' && guessCount[0].cnt === 0;
+      const isFirst = game.mode === 'basta' && guesses.length === 0;
 
       await submitGuess(roundId, playerId, pct, isFirst);
 
-      const [playerRows] = await pool.execute('SELECT display_name, photo_path FROM players WHERE id=?', [playerId]);
-      // Broadcast to room WITHOUT position (so others can't see where you guessed)
+      const player = await cache.getPlayer(gameId, playerId);
       io.to(socket.data.roomCode).emit('guess_submitted', {
         roundId, playerId, isFirst,
-        playerName: playerRows[0]?.display_name,
-        photoPath: playerRows[0]?.photo_path,
+        playerName: player?.display_name,
+        photoPath: player?.photo_path,
         submittedAt: Date.now(),
       });
-      // Send position only to the guesser as confirmation
       socket.emit('guess_confirmed', { roundId, guessPct: pct, submittedAt: Date.now() });
 
       // Check if all eligible players guessed
@@ -88,23 +78,17 @@ module.exports = function roundHandlers(io, socket) {
       const eligible = round.team_num
         ? allPlayers.filter(p => p.team === round.team_num && p.id !== round.psychic_id && p.connected && !p.is_spectator)
         : allPlayers.filter(p => p.id !== round.psychic_id && p.connected && !p.is_spectator);
-      const [guesses] = await pool.execute('SELECT player_id FROM guesses WHERE round_id=?', [roundId]);
-      const guessedIds = new Set(guesses.map(g => g.player_id));
 
-      // Remove bloqueo'd players from eligible
-      const [blockedPlayers] = await pool.execute(
-        `SELECT rp.target_player FROM round_powers rp JOIN powers p ON rp.power_id=p.id
-         WHERE rp.round_id=? AND p.name='bloqueo' AND rp.activated=TRUE`, [roundId]
-      );
-      const blockedSet = new Set(blockedPlayers.map(b => b.target_player));
-      const effectiveEligible = eligible.filter(p => !blockedSet.has(p.id));
+      const updatedGuesses = await getGuesses(roundId);
+      const guessedIds = new Set(updatedGuesses.map(g => g.player_id));
+      const blockedIds = new Set(roundPowers.filter(rp => rp.name === 'bloqueo' && rp.activated).map(rp => rp.target_player));
+      const effectiveEligible = eligible.filter(p => !blockedIds.has(p.id));
 
       const allIn = effectiveEligible.every(p => guessedIds.has(p.id));
       if (allIn) {
         io.to(socket.data.roomCode).emit('all_guesses_in', { roundId });
         setTimeout(() => triggerReveal(io, socket, roundId), 1500);
       } else if (isFirst && game.mode === 'basta') {
-        // BASTA: first guess triggers immediate reveal
         setTimeout(() => triggerReveal(io, socket, roundId), 1500);
       }
 
@@ -120,10 +104,9 @@ module.exports = function roundHandlers(io, socket) {
       if (!round) return socket.emit('error', { code: 'NOT_FOUND', message: 'Ronda no encontrada' });
       if (round.status !== 'guessing') return socket.emit('error', { code: 'WRONG_PHASE', message: 'No es la fase de adivinanza' });
 
-      // Only host can manually trigger reveal
       const playerId = socket.data.playerId;
-      const [hostRows] = await pool.execute('SELECT id FROM players WHERE game_id=? AND is_host=TRUE', [round.game_id]);
-      const isHost = hostRows[0]?.id === playerId;
+      const allPlayers = await cache.getPlayers(round.game_id);
+      const isHost = allPlayers.some(p => p.id === playerId && p.is_host);
       if (!isHost) return socket.emit('error', { code: 'NOT_AUTHORIZED', message: 'Solo el host puede revelar' });
 
       await triggerReveal(io, socket, roundId);
@@ -134,7 +117,7 @@ module.exports = function roundHandlers(io, socket) {
 };
 
 async function triggerReveal(io, socket, roundId) {
-  const round = await getRound(roundId);
+  const round = await cache.getRound(roundId);
   if (!round || round.status === 'revealing' || round.status === 'done') return;
 
   await markRevealed(roundId);
@@ -151,23 +134,18 @@ async function triggerReveal(io, socket, roundId) {
       const temp = activatorGuess.guess_pct;
       activatorGuess.guess_pct = targetGuess.guess_pct;
       targetGuess.guess_pct = temp;
-      // Update DB
-      await pool.execute('UPDATE guesses SET guess_pct=? WHERE round_id=? AND player_id=?',
-        [activatorGuess.guess_pct, roundId, activatorGuess.player_id]);
-      await pool.execute('UPDATE guesses SET guess_pct=? WHERE round_id=? AND player_id=?',
-        [targetGuess.guess_pct, roundId, targetGuess.player_id]);
+      await cache.setGuess(roundId, activatorGuess);
+      await cache.setGuess(roundId, targetGuess);
     }
   }
 
   const targetPct = parseFloat(round.target_pct);
   const game = await getGame(round.game_id);
-
-  let scoreResults;
   const scoring = { bullseye: game.score_bullseye ?? 4, close: game.score_close ?? 3, near: game.score_near ?? 2 };
 
+  let scoreResults;
   if (game.mode === 'basta') {
     scoreResults = resolveBasta(guesses, targetPct, activePowers, scoring);
-    // If the first guesser missed, give +1 to all eligible players who didn't guess
     if (scoreResults.length > 0 && scoreResults[0].delta <= 0) {
       const allPlayers = await getPlayersForGame(round.game_id);
       const scoredIds = new Set(scoreResults.map(r => r.playerId));
@@ -184,39 +162,34 @@ async function triggerReveal(io, socket, roundId) {
     });
   }
 
-  // Apply veneno side-effects
-  const venonoUsage = activePowers.find(p => p.powerName === 'veneno');
-  if (venonoUsage?.targetId) {
-    await updatePlayerScore(venonoUsage.targetId, -3);
-    // Add to score_log
-    await pool.execute(
-      'INSERT INTO score_log (id, game_id, round_id, player_id, delta, reason) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuidv4(), round.game_id, roundId, venonoUsage.targetId, -3, 'veneno_taken']
-    );
+  // Apply veneno side-effect (-3 to target)
+  const venomUsage = activePowers.find(p => p.powerName === 'veneno');
+  if (venomUsage?.targetId) {
+    await updatePlayerScore(round.game_id, venomUsage.targetId, -3);
   }
 
   // Apply score deltas
   await saveScoreDeltas(roundId, scoreResults);
   for (const r of scoreResults) {
     if (r.delta !== 0) {
-      await updatePlayerScore(r.playerId, r.delta);
+      await updatePlayerScore(round.game_id, r.playerId, r.delta);
     }
-    await pool.execute(
-      'INSERT INTO score_log (id, game_id, round_id, player_id, delta, reason) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuidv4(), round.game_id, roundId, r.playerId, r.delta, r.reason]
-    );
   }
 
-  // Psychic scoring: +1 per guesser that hit, -2 if nobody hit
+  // Track bullseye winners for guaranteed power next round
+  const bullseyeWinners = scoreResults.filter(r => r.reason === 'bullseye').map(r => r.playerId);
+  if (bullseyeWinners.length) {
+    const key = `bullseye_winners:${round.game_id}:${round.round_number}`;
+    await cache.client.sadd(key, ...bullseyeWinners);
+    await cache.client.expire(key, 7200); // auto-expire after 2h
+  }
+
+  // Psychic scoring
   if (game.mode !== 'basta') {
     const hits = scoreResults.filter(r => r.delta > 0).length;
     const psychicDelta = hits > 0 ? hits : -2;
     const psychicReason = hits > 0 ? 'psychic_good_clue' : 'psychic_no_hits';
-    await updatePlayerScore(round.psychic_id, psychicDelta);
-    await pool.execute(
-      'INSERT INTO score_log (id, game_id, round_id, player_id, delta, reason) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuidv4(), round.game_id, roundId, round.psychic_id, psychicDelta, psychicReason]
-    );
+    await updatePlayerScore(round.game_id, round.psychic_id, psychicDelta);
     scoreResults.push({ playerId: round.psychic_id, guessPct: null, delta: psychicDelta, reason: psychicReason });
   }
 
@@ -239,11 +212,11 @@ async function triggerReveal(io, socket, roundId) {
     activePowers,
   });
 
-  // In teams mode, only do scores/win check when ALL team rounds for this round_number are done
+  // In teams mode, wait for ALL team rounds to finish before scoring
   if (round.team_num) {
     const teamRounds = await getRoundsForRoundNumber(round.game_id, round.round_number);
     const allDone = teamRounds.every(r => r.status === 'done');
-    if (!allDone) return; // Wait for other teams
+    if (!allDone) return;
   }
 
   setTimeout(async () => {
@@ -253,13 +226,17 @@ async function triggerReveal(io, socket, roundId) {
 
     const winResult = await checkWinCondition(round.game_id);
     if (winResult.won) {
+      // Cleanup game data after game over
+      const gameData = await getGame(round.game_id);
       io.to(socket.data.roomCode).emit('game_over', {
         winner: winResult.winner,
         winnerTeam: winResult.winnerTeam ?? null,
         teamScore: winResult.teamScore ?? null,
         finalScores: updatedPlayers.sort((a, b) => b.score - a.score),
       });
+      if (gameData) {
+        await cache.cleanupGame(gameData.id, gameData.room_code);
+      }
     }
   }, 500);
 }
-

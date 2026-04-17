@@ -1,6 +1,7 @@
 const router = require('express').Router();
+const cache = require('../cache/redis');
+
 const uuidv4 = () => require('crypto').randomUUID();
-const pool = require('../db');
 
 // POST /api/players/join — join or register in a game
 router.post('/join', async (req, res) => {
@@ -8,25 +9,33 @@ router.post('/join', async (req, res) => {
   if (!game_id || !display_name) return res.status(400).json({ error: 'game_id and display_name required' });
 
   try {
-    const [gameRows] = await pool.execute('SELECT id, status FROM games WHERE id = ?', [game_id]);
-    if (!gameRows.length) return res.status(404).json({ error: 'Game not found' });
-    if (gameRows[0].status === 'finished') return res.status(400).json({ error: 'Game already finished' });
+    const game = await cache.getGame(game_id);
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (game.status === 'finished') return res.status(400).json({ error: 'Game already finished' });
 
-    const [existingPlayers] = await pool.execute('SELECT COUNT(*) as cnt FROM players WHERE game_id = ?', [game_id]);
-    const isHost = existingPlayers[0].cnt === 0;
-    const turnOrder = existingPlayers[0].cnt;
+    const existingPlayers = await cache.getPlayers(game_id);
+    const isHost = existingPlayers.length === 0;
+    const turnOrder = existingPlayers.length;
 
-    const id = uuidv4();
-    await pool.execute(
-      'INSERT INTO players (id, game_id, display_name, photo_path, is_host, turn_order) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, game_id, display_name.trim().substring(0, 50), photo_path || null, isHost, turnOrder]
-    );
+    const player = {
+      id: uuidv4(),
+      game_id,
+      display_name: display_name.trim().substring(0, 50),
+      photo_path: photo_path || null,
+      score: 0,
+      team: null,
+      is_host: isHost,
+      is_spectator: false,
+      socket_id: null,
+      connected: false,
+      turn_order: turnOrder,
+    };
 
-    const [player] = await pool.execute('SELECT * FROM players WHERE id = ?', [id]);
-    res.json(player[0]);
+    await cache.setPlayer(game_id, player);
+    res.json(player);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'DB error' });
+    res.status(500).json({ error: 'Error' });
   }
 });
 

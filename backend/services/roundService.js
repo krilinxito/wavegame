@@ -1,85 +1,96 @@
+const cache = require('../cache/redis');
+
 const uuidv4 = () => require('crypto').randomUUID();
-const pool = require('../db');
 
 async function createRound(gameId, psychicId, roundNumber, teamNum = null) {
-  const id = uuidv4();
-  const targetPct = Math.random().toFixed(4);
-  await pool.execute(
-    'INSERT INTO rounds (id, game_id, round_number, psychic_id, target_pct, team_num) VALUES (?, ?, ?, ?, ?, ?)',
-    [id, gameId, roundNumber, psychicId, targetPct, teamNum]
-  );
-  const [rows] = await pool.execute('SELECT * FROM rounds WHERE id = ?', [id]);
-  return rows[0];
+  const round = {
+    id: uuidv4(),
+    game_id: gameId,
+    round_number: roundNumber,
+    psychic_id: psychicId,
+    target_pct: parseFloat(Math.random().toFixed(4)),
+    clue: null,
+    status: 'clue_giving',
+    team_num: teamNum ?? null,
+    started_at: Date.now(),
+    revealed_at: null,
+  };
+  await cache.setRound(round);
+  return round;
 }
 
 async function getRoundsForRoundNumber(gameId, roundNumber) {
-  const [rows] = await pool.execute(
-    'SELECT * FROM rounds WHERE game_id=? AND round_number=?',
-    [gameId, roundNumber]
-  );
-  return rows;
+  const rounds = await cache.getRoundsForGame(gameId);
+  return rounds.filter(r => r.round_number === roundNumber);
 }
 
 async function getRound(roundId) {
-  const [rows] = await pool.execute('SELECT * FROM rounds WHERE id = ?', [roundId]);
-  return rows[0] || null;
+  return cache.getRound(roundId);
 }
 
 async function setClue(roundId, clue) {
-  await pool.execute(
-    "UPDATE rounds SET clue=?, status='guessing' WHERE id=? AND status='clue_giving'",
-    [clue.trim().substring(0, 255), roundId]
-  );
+  const round = await cache.getRound(roundId);
+  if (!round || round.status !== 'clue_giving') return;
+  round.clue = clue.trim().substring(0, 255);
+  round.status = 'guessing';
+  await cache.setRound(round);
 }
 
 async function getGuesses(roundId) {
-  const [rows] = await pool.execute(
-    'SELECT * FROM guesses WHERE round_id = ? ORDER BY submitted_at ASC',
-    [roundId]
-  );
-  return rows;
+  return cache.getGuesses(roundId);
 }
 
 async function submitGuess(roundId, playerId, guessPct, isFirst = false) {
-  const id = uuidv4();
-  await pool.execute(
-    'INSERT INTO guesses (id, round_id, player_id, guess_pct, is_first) VALUES (?, ?, ?, ?, ?)',
-    [id, roundId, playerId, guessPct, isFirst]
-  );
-  return id;
+  const guess = {
+    id: uuidv4(),
+    round_id: roundId,
+    player_id: playerId,
+    guess_pct: guessPct,
+    is_first: isFirst,
+    score_delta: null,
+    submitted_at: Date.now(),
+  };
+  await cache.setGuess(roundId, guess);
+  return guess.id;
 }
 
 async function saveScoreDeltas(roundId, scoreResults) {
-  // scoreResults: [{ playerId, delta, reason }]
   for (const r of scoreResults) {
-    await pool.execute(
-      'UPDATE guesses SET score_delta=? WHERE round_id=? AND player_id=?',
-      [r.delta, roundId, r.playerId]
-    );
+    const guess = await cache.getGuess(roundId, r.playerId);
+    if (guess) {
+      guess.score_delta = r.delta;
+      await cache.setGuess(roundId, guess);
+    }
   }
 }
 
 async function markRevealed(roundId) {
-  await pool.execute(
-    "UPDATE rounds SET status='revealing', revealed_at=NOW() WHERE id=?",
-    [roundId]
-  );
+  const round = await cache.getRound(roundId);
+  if (!round) return;
+  round.status = 'revealing';
+  round.revealed_at = Date.now();
+  await cache.setRound(round);
 }
 
 async function markDone(roundId) {
-  await pool.execute("UPDATE rounds SET status='done' WHERE id=?", [roundId]);
+  const round = await cache.getRound(roundId);
+  if (!round) return;
+  round.status = 'done';
+  await cache.setRound(round);
 }
 
 async function getUnusedCategory(gameId) {
-  const [rows] = await pool.execute(
-    'SELECT * FROM categories WHERE game_id=? AND used=FALSE ORDER BY RAND() LIMIT 1',
-    [gameId]
-  );
-  return rows[0] || null;
+  const categories = await cache.getCategories(gameId);
+  const unused = categories.filter(c => !c.used);
+  if (!unused.length) return null;
+  return unused[Math.floor(Math.random() * unused.length)];
 }
 
-async function markCategoryUsed(categoryId) {
-  await pool.execute('UPDATE categories SET used=TRUE WHERE id=?', [categoryId]);
+async function markCategoryUsed(gameId, categoryId) {
+  const cat = await cache.getCategory(gameId, categoryId);
+  if (!cat) return;
+  cat.used = true;
+  await cache.setCategory(gameId, cat);
 }
 
 module.exports = {

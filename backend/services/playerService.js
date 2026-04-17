@@ -1,30 +1,26 @@
-const pool = require('../db');
+const cache = require('../cache/redis');
 
 async function getPlayersForGame(gameId) {
-  const [rows] = await pool.execute(
-    'SELECT * FROM players WHERE game_id = ? ORDER BY turn_order ASC',
-    [gameId]
-  );
-  return rows;
+  return cache.getPlayers(gameId);
 }
 
-async function updatePlayerSocket(playerId, socketId, connected = true) {
-  await pool.execute(
-    'UPDATE players SET socket_id = ?, connected = ? WHERE id = ?',
-    [socketId, connected, playerId]
-  );
+async function updatePlayerSocket(gameId, playerId, socketId, connected = true) {
+  const player = await cache.getPlayer(gameId, playerId);
+  if (!player) return;
+  player.socket_id = socketId;
+  player.connected = connected;
+  await cache.setPlayer(gameId, player);
 }
 
-async function updatePlayerScore(playerId, delta) {
-  await pool.execute(
-    'UPDATE players SET score = score + ? WHERE id = ?',
-    [delta, playerId]
-  );
+async function updatePlayerScore(gameId, playerId, delta) {
+  const player = await cache.getPlayer(gameId, playerId);
+  if (!player) return;
+  player.score = (player.score || 0) + delta;
+  await cache.setPlayer(gameId, player);
 }
 
-async function getPlayer(playerId) {
-  const [rows] = await pool.execute('SELECT * FROM players WHERE id = ?', [playerId]);
-  return rows[0] || null;
+async function getPlayer(gameId, playerId) {
+  return cache.getPlayer(gameId, playerId);
 }
 
 module.exports = { getPlayersForGame, updatePlayerSocket, updatePlayerScore, getPlayer };
