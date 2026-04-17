@@ -10,7 +10,6 @@ function createClient() {
       port: parseInt(parsed.port) || 6379,
     };
     if (parsed.password) opts.password = decodeURIComponent(parsed.password);
-    if (parsed.username) opts.username = decodeURIComponent(parsed.username);
     return new Redis(opts);
   } catch {
     return new Redis(url);
