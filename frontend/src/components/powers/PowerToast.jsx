@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { playSfx } from '../../utils/sound';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
@@ -141,6 +142,11 @@ export default function PowerToast() {
 
       const msg = buildMessage(powerName, activator?.display_name ?? '?', target?.display_name ?? '?', isMyAction, isTargetedAtMe, quartile);
       const id = `${Date.now()}-${Math.random()}`;
+
+      const POWER_SFX = { cuartiles: 'sfx_cuartiles', veneno: 'sfx_veneno', escudo: 'sfx_escudo', bloqueo: 'sfx_bloqueo', switch: 'sfx_switch' };
+      if ((isMyAction || isTargetedAtMe) && POWER_SFX[powerName]) {
+        playSfx(POWER_SFX[powerName]);
+      }
 
       setToasts(prev => [...prev.slice(-3), { id, powerName, msg, isTargetedAtMe, leaving: false }]);
 

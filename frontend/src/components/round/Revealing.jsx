@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import SpectrumDial from '../spectrum/SpectrumDial';
 import useGameStore from '../../store/gameStore';
 import { getPlayerColor } from '../shared/PlayerAvatar';
+import { playSfx } from '../../utils/sound';
 
 const REASON_LABELS = {
   psychic_good_clue: { label: '🧠 Buena pista', color: '#10b981' },
@@ -32,14 +33,18 @@ export default function Revealing() {
 
   // Hooks must be before any conditional return
   useEffect(() => {
-    if (!revealData || !myResult) return;
+    if (!revealData) return;
+    playSfx('sfx_reveal');
+    if (!myResult) return;
     if (myResult.reason === 'bullseye') {
-      // Full screen burst for bullseye
+      playSfx('sfx_bullseye');
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });
       setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.1, y: 0.6 } }), 200);
       setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.9, y: 0.6 } }), 400);
     } else if (myResult.reason === 'close' || myResult.reason === 'near') {
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#fbbf24','#f97316','#10b981'] });
+    } else if (['miss','miss_escudo','miss_penalty'].includes(myResult.reason)) {
+      playSfx('sfx_miss');
     }
   }, [revealData?.targetPct]);  // eslint-disable-line react-hooks/exhaustive-deps
 

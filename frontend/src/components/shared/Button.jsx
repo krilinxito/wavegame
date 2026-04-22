@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { playSfx } from '../../utils/sound';
 
 const VARIANTS = {
   primary:   {
@@ -40,9 +41,10 @@ const SIZES = {
 };
 
 export default function Button({ children, onClick, variant = 'primary', disabled, style = {}, size = 'md' }) {
+  const handleClick = disabled ? undefined : (e) => { playSfx('sfx_click'); onClick?.(e); };
   return (
     <motion.button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       whileHover={disabled ? {} : { opacity: 0.88, y: -1 }}
       whileTap={disabled ? {} : {

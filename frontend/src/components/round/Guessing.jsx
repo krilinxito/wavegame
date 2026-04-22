@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { playSfx } from '../../utils/sound';
 import { motion, AnimatePresence } from 'framer-motion';
 import SpectrumDial from '../spectrum/SpectrumDial';
 import Button from '../shared/Button';
@@ -22,6 +23,7 @@ export default function Guessing() {
   const submitGuess = (pct) => {
     if (submitted || isPsychic || isBlocked || isSpectator) return;
     const finalPct = pct ?? guessPct;
+    playSfx('sfx_guess');
     socket.emit('submit_guess', { roundId: round.id, guessPct: finalPct });
     setSubmitted(true);
   };

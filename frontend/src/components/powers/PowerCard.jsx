@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { playSfx } from '../../utils/sound';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../shared/Modal';
 import Button from '../shared/Button';
@@ -184,6 +185,7 @@ export default function PowerCard() {
 
   // Step 1: Buy (pay cost, claim to inventory)
   const handleBuy = () => {
+    playSfx('sfx_power_buy');
     socket.emit('purchase_power', { roundPowerId, isFree: !!isFree });
     setOpen(false);
   };

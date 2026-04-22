@@ -6,11 +6,13 @@ import Game from './pages/Game';
 import socket from './socket';
 import { useSocket } from './hooks/useSocket';
 import useGameStore from './store/gameStore';
+import { playMusic, stopMusic, playSfx } from './utils/sound';
 
 export default function App() {
   const [page, setPage] = useState('home'); // 'home' | 'lobby' | 'game'
   const [error, setError] = useState('');
-  const { game } = useGameStore();
+  const { game, round, gameOver } = useGameStore();
+  const prevRoundStatusRef = React.useRef(null);
 
   useSocket(); // mount all socket listeners
 
@@ -19,6 +21,27 @@ export default function App() {
     if (game?.status === 'playing' && page === 'lobby') setPage('game');
     if (game?.status === 'lobby'   && page === 'game')  setPage('lobby');
   }, [game?.status]);
+
+  // Music per page and round phase
+  useEffect(() => {
+    if (page === 'home')  { stopMusic(); return; }
+    if (page === 'lobby') { playMusic('music_lobby'); return; }
+    if (page === 'game') {
+      if (gameOver)                        { stopMusic(); playSfx('music_victory'); return; }
+      if (!round)                          { stopMusic(); return; }
+      if (round.status === 'clue_giving')  { playMusic('music_clue'); return; }
+      if (round.status === 'guessing')     { playMusic('music_guess'); return; }
+      stopMusic();
+    }
+  }, [page, round?.status, !!gameOver]);
+
+  // sfx_clue when psychic submits (clue_giving → guessing)
+  useEffect(() => {
+    if (prevRoundStatusRef.current === 'clue_giving' && round?.status === 'guessing') {
+      playSfx('sfx_clue');
+    }
+    prevRoundStatusRef.current = round?.status ?? null;
+  }, [round?.status]);
 
   // Listen for socket errors to show toast
   useEffect(() => {
