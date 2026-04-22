@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { playSfx } from '../../utils/sound';
 
 export default function RoomCode({ code }) {
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
+    playSfx('sfx_click_alt');
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

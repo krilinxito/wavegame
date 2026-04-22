@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { playSfx } from '../utils/sound';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerAvatar, { getPlayerColor } from '../components/shared/PlayerAvatar';
 import RoomCode from '../components/shared/RoomCode';
@@ -55,6 +56,7 @@ export default function Lobby() {
   const importFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    playSfx('sfx_click_alt');
     const reader = new FileReader();
     reader.onload = (ev) => {
       const toEmoji = str => emojify(str);
@@ -78,6 +80,7 @@ export default function Lobby() {
   };
 
   const saveConfig = () => {
+    playSfx('sfx_click_alt');
     socket.emit('host_update_config', { gameId: game.id, ...config });
     setShowConfig(false);
   };
@@ -226,7 +229,7 @@ export default function Lobby() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <Button onClick={addCategory} variant="secondary" size="sm" style={{ flex: 1 }}>+ Agregar</Button>
                   <button
-                    onClick={() => fileRef.current?.click()}
+                    onClick={() => { playSfx('sfx_click_alt'); fileRef.current?.click(); }}
                     title="Importar desde .txt"
                     style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13 }}
                   >📂</button>
@@ -309,7 +312,7 @@ export default function Lobby() {
               <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={sectionTitle}>Config</div>
-                  <button onClick={() => setShowConfig(s => !s)} style={{ background: 'none', color: 'var(--c-muted)', cursor: 'pointer', fontSize: 14 }}>
+                  <button onClick={() => { playSfx('sfx_click_alt'); setShowConfig(s => !s); }} style={{ background: 'none', color: 'var(--c-muted)', cursor: 'pointer', fontSize: 14 }}>
                     {showConfig ? 'cerrar' : 'editar'}
                   </button>
                 </div>
@@ -328,7 +331,7 @@ export default function Lobby() {
                     >
                       <div style={labelStyle}>Modo</div>
                       {Object.entries(MODE_INFO).map(([key, info]) => (
-                        <button key={key} onClick={() => setConfig(c => ({ ...c, mode: key }))}
+                        <button key={key} onClick={() => { playSfx('sfx_click_alt'); setConfig(c => ({ ...c, mode: key })); }}
                           style={{ background: config.mode === key ? 'var(--c-accent)' : 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '6px 10px', cursor: 'pointer', color: 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 700, textAlign: 'left' }}
                         >
                           {info.label}
@@ -344,7 +347,7 @@ export default function Lobby() {
                       <div style={labelStyle}>Victoria</div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                         {['points', 'rounds'].map(wc => (
-                          <button key={wc} onClick={() => setConfig(c => ({ ...c, win_condition: wc }))}
+                          <button key={wc} onClick={() => { playSfx('sfx_click_alt'); setConfig(c => ({ ...c, win_condition: wc })); }}
                             style={{ background: config.win_condition === wc ? 'var(--c-accent)' : 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '6px', cursor: 'pointer', color: 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 12, fontWeight: 700 }}
                           >
                             {wc === 'points' ? 'Puntos' : 'Rondas'}
@@ -372,7 +375,7 @@ export default function Lobby() {
                       <div style={labelStyle}>Tiempo de adivinación</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
                         {[60, 90, 120, 180].map(t => (
-                          <button key={t} onClick={() => setConfig(c => ({ ...c, guess_time: t }))}
+                          <button key={t} onClick={() => { playSfx('sfx_click_alt'); setConfig(c => ({ ...c, guess_time: t })); }}
                             style={{ background: config.guess_time === t ? 'var(--c-accent)' : 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '5px 4px', cursor: 'pointer', color: config.guess_time === t ? '#fff' : 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 12, fontWeight: 700 }}
                           >
                             {t < 60 ? `${t}s` : `${t/60}m`}{t === 120 ? '' : ''}

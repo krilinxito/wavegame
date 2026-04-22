@@ -24,10 +24,10 @@ export default function App() {
 
   // Music per page and round phase
   useEffect(() => {
-    if (page === 'home')  { stopMusic(); return; }
+    if (page === 'home')  { playMusic('music_home'); return; }
     if (page === 'lobby') { playMusic('music_lobby'); return; }
     if (page === 'game') {
-      if (gameOver)                        { stopMusic(); playSfx('music_victory'); return; }
+      if (gameOver)                        { playMusic('music_victory', { loop: false }); return; }
       if (!round)                          { stopMusic(); return; }
       if (round.status === 'clue_giving')  { playMusic('music_clue'); return; }
       if (round.status === 'guessing')     { playMusic('music_guess'); return; }
