@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import Splash from './pages/Splash';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
+import AnimatedBackground from './components/shared/AnimatedBackground';
 import socket from './socket';
 import { useSocket } from './hooks/useSocket';
 import useGameStore from './store/gameStore';
 import { playMusic, stopMusic, playSfx } from './utils/sound';
 
 export default function App() {
-  const [page, setPage] = useState('home'); // 'home' | 'lobby' | 'game'
+  const [page, setPage] = useState('splash'); // 'splash' | 'home' | 'lobby' | 'game'
   const [error, setError] = useState('');
   const { game, round, gameOver } = useGameStore();
   const prevRoundStatusRef = React.useRef(null);
@@ -24,6 +26,7 @@ export default function App() {
 
   // Music per page and round phase
   useEffect(() => {
+    if (page === 'splash') { stopMusic(); return; }
     if (page === 'home')  { playMusic('music_home'); return; }
     if (page === 'lobby') { playMusic('music_lobby'); return; }
     if (page === 'game') {
@@ -31,7 +34,6 @@ export default function App() {
       if (!round)                          { stopMusic(); return; }
       if (round.status === 'clue_giving')                                          { playMusic('music_clue'); return; }
       if (round.status === 'guessing')                                              { playMusic('music_guess'); return; }
-      if (['revealing','scoring','done','revealed'].includes(round.status))        { playMusic('music_reveal'); return; }
       stopMusic();
     }
   }, [page, round?.status, !!gameOver]);
@@ -63,6 +65,7 @@ export default function App() {
 
   return (
     <>
+      <AnimatedBackground />
       {/* Global error toast */}
       <AnimatePresence>
         {error && (
@@ -77,6 +80,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {page === 'splash' && <Splash onPlay={() => setPage('home')} />}
       {page === 'home'  && <Home onJoin={handleJoin} />}
       {page === 'lobby' && <Lobby />}
       {page === 'game'  && <Game />}
