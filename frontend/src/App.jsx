@@ -29,8 +29,9 @@ export default function App() {
     if (page === 'game') {
       if (gameOver)                        { playMusic('music_victory', { loop: false }); return; }
       if (!round)                          { stopMusic(); return; }
-      if (round.status === 'clue_giving')  { playMusic('music_clue'); return; }
-      if (round.status === 'guessing')     { playMusic('music_guess'); return; }
+      if (round.status === 'clue_giving')                                          { playMusic('music_clue'); return; }
+      if (round.status === 'guessing')                                              { playMusic('music_guess'); return; }
+      if (['revealing','scoring','done','revealed'].includes(round.status))        { playMusic('music_reveal'); return; }
       stopMusic();
     }
   }, [page, round?.status, !!gameOver]);

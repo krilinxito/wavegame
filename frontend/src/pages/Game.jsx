@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { playSfx } from '../utils/sound';
 import ClueGiving from '../components/round/ClueGiving';
 import Guessing from '../components/round/Guessing';
 import Revealing from '../components/round/Revealing';
@@ -96,6 +97,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
 
   useEffect(() => {
     if (isWinner) {
+      playSfx('sfx_celebrate');
       const end = Date.now() + 3500;
       const frame = () => {
         confetti({ particleCount: 6, angle: 60,  spread: 55, origin: { x: 0 }, colors: ['#ef4444','#fbbf24','#10b981','#6c63ff'] });

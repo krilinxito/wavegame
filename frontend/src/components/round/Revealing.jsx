@@ -42,6 +42,7 @@ export default function Revealing() {
       setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.1, y: 0.6 } }), 200);
       setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { x: 0.9, y: 0.6 } }), 400);
     } else if (myResult.reason === 'close' || myResult.reason === 'near') {
+      playSfx('sfx_celebrate');
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#fbbf24','#f97316','#10b981'] });
     } else if (['miss','miss_escudo','miss_penalty'].includes(myResult.reason)) {
       playSfx('sfx_miss');
