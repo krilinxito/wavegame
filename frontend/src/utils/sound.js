@@ -10,6 +10,17 @@ function getMusicAudio() {
   return musicAudio;
 }
 
+// If autoplay is blocked, retry on first user interaction
+function playWhenAllowed(audio, name) {
+  const retry = () => {
+    if (currentMusicName === name) audio.play().catch(() => {});
+    window.removeEventListener('click', retry);
+    window.removeEventListener('keydown', retry);
+  };
+  window.addEventListener('click', retry);
+  window.addEventListener('keydown', retry);
+}
+
 export function playSfx(name) {
   const a = new Audio(`/sounds/${name}.mp3`);
   a.volume = 0.65;
@@ -23,7 +34,7 @@ export function playMusic(name, { loop = true } = {}) {
   audio.src = `/sounds/${name}.mp3`;
   audio.loop = loop;
   currentMusicName = name;
-  audio.play().catch(() => {});
+  audio.play().catch(() => playWhenAllowed(audio, name));
 }
 
 export function stopMusic() {
