@@ -6,6 +6,7 @@ import Button from '../shared/Button';
 import PlayerAvatar from '../shared/PlayerAvatar';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
+import { useLang } from '../../hooks/useLang';
 
 const POWER_ICONS = {
   cuartiles: '🔭',
@@ -40,18 +41,18 @@ function EmptySlot() {
 }
 
 function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving, onClick }) {
+  const L = useLang();
   const [hovered, setHovered] = useState(false);
   const color = POWER_COLORS[power.name] || '#7c3aed';
   const icon  = POWER_ICONS[power.name]  || '✨';
 
   let hoverLabel = '';
   if (!alreadyUsed) {
-    if (!purchased) hoverLabel = isFree ? 'Canjear gratis' : 'Comprar';
-    else if (queued)  hoverLabel = '⏳ Reservado';
-    else              hoverLabel = isClueGiving ? 'Reservar' : 'Usar';
+    if (!purchased) hoverLabel = isFree ? L.redeemFree : L.buy;
+    else if (queued)  hoverLabel = L.reserved;
+    else              hoverLabel = isClueGiving ? L.reserve : L.use;
   }
 
-  // Badge content (rendered outside the button to avoid overflow:hidden clipping)
   let badge = null;
   if (isFree && !purchased && !alreadyUsed)
     badge = <span style={{ background: '#fbbf24', color: '#000', fontSize: 8, fontWeight: 800, borderRadius: 6, padding: '1px 4px' }}>FREE</span>;
@@ -63,7 +64,6 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
     badge = <span style={{ background: color, color: '#fff', fontSize: 8, fontWeight: 800, borderRadius: 6, padding: '1px 5px' }}>✔</span>;
 
   return (
-    // Wrapper div handles the badge overflow outside the button
     <div style={{ position: 'relative', width: 68, height: 80 }}>
       <motion.button
         whileHover={alreadyUsed ? {} : { scale: 1.06 }}
@@ -108,7 +108,6 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
           {power.name}
         </span>
 
-        {/* Price tag (bottom left, shown if not purchased) */}
         {!purchased && !alreadyUsed && (
           <span style={{
             position: 'absolute', bottom: 4, left: 4,
@@ -119,7 +118,6 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
           </span>
         )}
 
-        {/* Hover overlay */}
         <AnimatePresence>
           {hovered && hoverLabel && !alreadyUsed && !queued && (
             <motion.div
@@ -142,7 +140,6 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
         </AnimatePresence>
       </motion.button>
 
-      {/* Badge fuera del botón para no ser cortado por overflow:hidden */}
       {badge && (
         <div style={{ position: 'absolute', top: -6, right: -6, zIndex: 1 }}>
           {badge}
@@ -153,6 +150,7 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
 }
 
 export default function PowerCard() {
+  const L = useLang();
   const { myPower, myPowerPurchased, myPowerQueued, activePowers, players, myPlayer, round, game } = useGameStore();
   const [open, setOpen]             = useState(false);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -183,28 +181,26 @@ export default function PowerCard() {
     p.connected
   );
 
-  // Step 1: Buy (pay cost, claim to inventory)
   const handleBuy = () => {
     playSfx('sfx_power_buy');
     socket.emit('purchase_power', { roundPowerId, isFree: !!isFree });
     setOpen(false);
   };
 
-  // Step 2: Use / Reserve (apply effect)
   const handleUse = () => {
     if (needsTarget && !selectedTarget) return;
     if (isClueGiving) {
       socket.emit('queue_power', {
         roundPowerId,
         targetPlayerId: selectedTarget || null,
-        isFree: true, // ya fue pagado en comprar
+        isFree: true,
       });
       setOpen(false);
     } else {
       socket.emit('activate_power', {
         roundPowerId,
         targetPlayerId: selectedTarget || null,
-        isFree: true, // ya fue pagado en comprar
+        isFree: true,
       });
       setUsed(true);
       setOpen(false);
@@ -222,9 +218,8 @@ export default function PowerCard() {
     return { type: 'empty' };
   });
 
-  // Modal content depends on step
-  const isStep1 = !myPowerPurchased; // comprar
-  const actionLabel = isStep1 ? (isFree ? 'Canjear gratis' : 'Comprar') : isClueGiving ? 'Reservar' : 'Usar';
+  const isStep1 = !myPowerPurchased;
+  const actionLabel = isStep1 ? (isFree ? L.redeemFree : L.buy) : isClueGiving ? L.reserve : L.use;
 
   return (
     <>
@@ -247,7 +242,7 @@ export default function PowerCard() {
           textTransform: 'uppercase', letterSpacing: 1.5,
           textAlign: 'center',
         }}>
-          Poderes
+          {L.powersTitle}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -271,7 +266,7 @@ export default function PowerCard() {
 
         {isQueued && (
           <div style={{ fontSize: 10, color, textAlign: 'center', marginTop: -2 }}>
-            ⏳ se activa al adivinar
+            {L.activatesOnGuess}
           </div>
         )}
       </motion.div>
@@ -288,7 +283,7 @@ export default function PowerCard() {
 
           {/* Step indicator */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-            {['Comprar', 'Usar'].map((step, i) => {
+            {[L.buy, L.use].map((step, i) => {
               const active = isStep1 ? i === 0 : i === 1;
               const done   = !isStep1 && i === 0;
               return (
@@ -311,14 +306,14 @@ export default function PowerCard() {
               {isFree ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 18 }}>🎯</span>
-                  <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>¡Poder gratis por bullseye!</span>
+                  <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>{L.freePowerBullseye}</span>
                 </span>
               ) : (
                 <>
-                  <span style={{ color: 'var(--c-muted)' }}>Costo: </span>
+                  <span style={{ color: 'var(--c-muted)' }}>{L.costLabel} </span>
                   <span style={{ fontFamily: 'Fredoka One', color, fontSize: 20 }}>{power.cost} pts</span>
                   <span style={{ color: 'var(--c-muted)', fontSize: 12, marginLeft: 8 }}>
-                    — se guardan en tu inventario
+                    {L.savedInventory}
                   </span>
                 </>
               )}
@@ -331,12 +326,12 @@ export default function PowerCard() {
               {isClueGiving && (
                 <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 18 }}>⏳</span>
-                  <span>El efecto se activará automáticamente cuando empiece la adivinación</span>
+                  <span>{L.autoActivate}</span>
                 </div>
               )}
               {needsTarget && (
                 <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>Elegí un jugador:</p>
+                  <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>{L.choosePlayer}</p>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     {eligibleTargets.map(p => (
                       <motion.button
@@ -363,7 +358,7 @@ export default function PowerCard() {
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{L.cancel}</Button>
             <Button
               variant="primary"
               onClick={isStep1 ? handleBuy : handleUse}

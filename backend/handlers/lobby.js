@@ -2,7 +2,7 @@ const cache = require('../cache/redis');
 const { getPlayersForGame } = require('../services/playerService');
 const { getGame, getGameByCode, updateGameConfig, startGame, rotatePsychic } = require('../services/gameService');
 const { createRound, getUnusedCategory, markCategoryUsed } = require('../services/roundService');
-const { offerPowers } = require('../services/powerService');
+const { offerPowers, carryOverPowers } = require('../services/powerService');
 
 const uuidv4 = () => require('crypto').randomUUID();
 
@@ -328,7 +328,21 @@ async function startNextRound(io, roomCode, gameId, mode) {
   const bullseyeIds = await cache.client.smembers(`bullseye_winners:${gameId}:${game.current_round - 1}`);
   const guaranteedIds = new Set(bullseyeIds);
 
-  const powerOffers = await offerPowers(round.id, nonPsychicIds, mode, guaranteedIds);
+  // Carry-over: players with purchased but unused powers from last round keep them
+  const allRounds = await cache.getRoundsForGame(gameId);
+  const prevRound = allRounds.find(r => r.round_number === game.current_round - 1);
+  const carryOverOffers = prevRound ? await carryOverPowers(prevRound.id, round.id) : {};
+  const playersWithCarryOver = new Set(Object.keys(carryOverOffers));
+
+  // Exclude carry-over players from normal offer pool (they already have a power)
+  const offeredNonPsychicIds = nonPsychicIds.filter(id => !playersWithCarryOver.has(id));
+
+  // Bug fix: if psychic earned a guaranteed power (bullseye) and has no carry-over, include them
+  const psychicNeedsGuarantee = guaranteedIds.has(psychic.id) && !playersWithCarryOver.has(psychic.id);
+  const allOfferedIds = psychicNeedsGuarantee ? [...offeredNonPsychicIds, psychic.id] : offeredNonPsychicIds;
+
+  const powerOffers = await offerPowers(round.id, allOfferedIds, mode, guaranteedIds);
+  const allOffers = { ...carryOverOffers, ...powerOffers };
 
   const roundPublic = { ...round, target_pct: undefined };
   io.to(roomCode).emit('round_started', {
@@ -345,7 +359,7 @@ async function startNextRound(io, roomCode, gameId, mode) {
     io.to(psychic.socket_id).emit('psychic_target', { roundId: round.id, targetPct: round.target_pct });
   }
 
-  for (const [playerId, offer] of Object.entries(powerOffers)) {
+  for (const [playerId, offer] of Object.entries(allOffers)) {
     const p = players.find(pl => pl.id === playerId);
     if (p?.socket_id) {
       io.to(p.socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
@@ -373,12 +387,22 @@ async function startTeamsRound(io, roomCode, gameId) {
     const category = await getUnusedCategory(gameId);
     if (!category) {
       const active = allPlayers.filter(p => !p.is_spectator);
-      const sorted = [...active].sort((a, b) => b.score - a.score);
+      const teamScores = {};
+      for (const p of active) {
+        if (!p.team) continue;
+        teamScores[p.team] = (teamScores[p.team] || 0) + p.score;
+      }
+      const sortedTeams = Object.entries(teamScores).sort(([, a], [, b]) => b - a);
+      const winnerTeamNum = sortedTeams.length ? parseInt(sortedTeams[0][0]) : null;
+      const winnerTeamScore = sortedTeams.length ? sortedTeams[0][1] : null;
       game.status = 'finished';
       await cache.setGame(game);
       io.to(roomCode).emit('game_over', {
-        winner: sorted[0] || null, winnerTeam: null, teamScore: null,
-        finalScores: sorted, reason: 'no_categories',
+        winner: null,
+        winnerTeam: winnerTeamNum,
+        teamScore: winnerTeamScore,
+        finalScores: [...active].sort((a, b) => b.score - a.score),
+        reason: 'no_categories',
       });
       return;
     }

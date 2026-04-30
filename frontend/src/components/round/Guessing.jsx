@@ -7,8 +7,10 @@ import Timer from '../shared/Timer';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
 import { slideUp } from '../../animations/variants';
+import { useLang } from '../../hooks/useLang';
 
 export default function Guessing() {
+  const L = useLang();
   const { round, category, myPlayer, players, activePowers, game, submittedGuesses } = useGameStore();
   const [guessPct, setGuessPct] = useState(0.5);
   const [submitted, setSubmitted] = useState(false);
@@ -32,7 +34,6 @@ export default function Guessing() {
     if (!submitted && !isPsychic && !isBlocked) {
       submitGuess(guessPct);
     }
-    // If host, also trigger reveal
     if (!!myPlayer?.is_host) {
       socket.emit('request_reveal', { roundId: round.id });
     }
@@ -42,11 +43,9 @@ export default function Guessing() {
   const nonPsychicPlayers = players.filter(p => p.id !== round?.psychic_id);
   const submittedCount = submittedGuesses.length;
 
-  // Ref always points to latest submitGuess — evita closure stale
   const submitGuessRef = useRef(null);
   submitGuessRef.current = submitGuess;
 
-  // Spacebar triggers basta submit (un solo listener estable)
   useEffect(() => {
     if (!isBasta) return;
     const onKey = (e) => {
@@ -64,7 +63,7 @@ export default function Guessing() {
       <motion.div {...slideUp} style={{ textAlign: 'center', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--c-muted)', fontWeight: 600 }}>
-            RONDA {round?.round_number} · ADIVINANZA
+            {L.roundGuess(round?.round_number)}
             {isBasta && <span style={{ color: '#fbbf24', marginLeft: 8 }}>⚡ BASTA</span>}
           </div>
           <Timer seconds={game?.guess_time || 120} onExpire={handleTimerExpire} />
@@ -78,9 +77,9 @@ export default function Guessing() {
           "{round?.clue}"
         </div>
         <div style={{ fontSize: 13, color: 'var(--c-muted)', marginTop: 6 }}>
-          dijo <strong style={{ color: 'var(--c-text)' }}>{round?.psychicName}</strong>
+          {L.saidClue(round?.psychicName)}
           <span style={{ marginLeft: 12, color: 'var(--c-muted)' }}>
-            {submittedCount}/{nonPsychicPlayers.length} adivinaron
+            {L.guessedCount(submittedCount, nonPsychicPlayers.length)}
           </span>
         </div>
       </motion.div>
@@ -95,13 +94,12 @@ export default function Guessing() {
         showQuartile={showQuartile}
       />
 
-
       {isPsychic && (
-        <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>Sos el Psychic — no podés adivinar</div>
+        <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>{L.psychicCantGuess}</div>
       )}
 
       {isSpectator && (
-        <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>👁 Estás especteando esta ronda</div>
+        <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>{L.spectatorRound}</div>
       )}
 
       {isBlocked && !isPsychic && (
@@ -109,7 +107,7 @@ export default function Guessing() {
           initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
           style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 24px', color: '#ef4444', fontWeight: 700 }}
         >
-          🚫 Estás bloqueado esta ronda
+          {L.blocked}
         </motion.div>
       )}
 
@@ -121,21 +119,21 @@ export default function Guessing() {
             >
               {isBasta && (
                 <p style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700 }}>
-                  ⚡ El primero en adivinar es el único que puede ganar puntos
+                  {L.bastaInfo}
                 </p>
               )}
               <Button onClick={() => submitGuess()} size="lg">
-                {isBasta ? '⚡ ¡BASTA! Confirmar' : 'Confirmar adivinanza'}
+                {isBasta ? L.bastaConfirm : L.confirmGuess}
               </Button>
               <p style={{ color: 'var(--c-muted)', fontSize: 12 }}>
-                {isBasta ? 'Click o Espacio para cantar BASTA' : 'Arrastrá la aguja y confirmá tu posición'}
+                {isBasta ? L.bastaHint : L.guessHint}
               </p>
             </motion.div>
           ) : (
             <motion.div key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               style={{ color: '#10b981', fontWeight: 700, fontSize: 16 }}
             >
-              ✓ Adivinanza enviada
+              {L.guessSent}
             </motion.div>
           )}
         </AnimatePresence>

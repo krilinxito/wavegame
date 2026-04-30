@@ -181,7 +181,7 @@ async function triggerReveal(io, socket, roundId) {
   // Psychic scoring
   if (game.mode !== 'basta') {
     const hits = scoreResults.filter(r => r.delta > 0).length;
-    const psychicDelta = hits > 0 ? hits : -2;
+    const psychicDelta = hits > 0 ? hits : (game.mode === 'teams' ? -1 : -2);
     const psychicReason = hits > 0 ? 'psychic_good_clue' : 'psychic_no_hits';
     await updatePlayerScore(round.game_id, round.psychic_id, psychicDelta);
     scoreResults.push({ playerId: round.psychic_id, guessPct: null, delta: psychicDelta, reason: psychicReason });

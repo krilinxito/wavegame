@@ -2,8 +2,33 @@ import { useState, useRef } from 'react';
 import { BACKEND } from '../config';
 import { motion } from 'framer-motion';
 import Button from '../components/shared/Button';
+import { useSettings } from '../context/SettingsContext';
+
+const STRINGS = {
+  es: {
+    create: 'Crear sala', join: 'Unirse',
+    photo: 'Foto de perfil', optional: 'Opcional · max 2MB',
+    namePlaceholder: 'Tu nombre', codePlaceholder: 'Código de sala',
+    loading: 'Cargando...', createBtn: 'Crear sala', joinBtn: 'Entrar',
+    nameRequired: 'Ingresá tu nombre', codeRequired: 'Ingresá el código de sala',
+    notFound: 'Sala no encontrada', createError: 'Error al crear la sala', joinError: 'Error al conectarse',
+    tagline: 'El wavelength de la plebe',
+  },
+  en: {
+    create: 'Create room', join: 'Join',
+    photo: 'Profile photo', optional: 'Optional · max 2MB',
+    namePlaceholder: 'Your name', codePlaceholder: 'Room code',
+    loading: 'Loading...', createBtn: 'Create room', joinBtn: 'Enter',
+    nameRequired: 'Enter your name', codeRequired: 'Enter the room code',
+    notFound: 'Room not found', createError: 'Error creating room', joinError: 'Error connecting',
+    tagline: 'The wavelength of la plebe',
+  },
+};
 
 export default function Home({ onJoin }) {
+  const { lang } = useSettings();
+  const s = STRINGS[lang] ?? STRINGS.es;
+
   const [name, setName]         = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [tab, setTab]           = useState('create');
@@ -30,28 +55,28 @@ export default function Home({ onJoin }) {
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) return setError('Ingresá tu nombre');
+    if (!name.trim()) return setError(s.nameRequired);
     setLoading(true); setError('');
     try {
       const res = await fetch(`${BACKEND}/api/games`, { method: 'POST' });
       const game = await res.json();
       const photoPath = await uploadPhoto();
       onJoin(game.room_code, game.id, name.trim(), photoPath);
-    } catch { setError('Error al crear la sala'); }
+    } catch { setError(s.createError); }
     finally { setLoading(false); }
   };
 
   const handleJoin = async () => {
-    if (!name.trim()) return setError('Ingresá tu nombre');
-    if (!roomCode.trim()) return setError('Ingresá el código de sala');
+    if (!name.trim()) return setError(s.nameRequired);
+    if (!roomCode.trim()) return setError(s.codeRequired);
     setLoading(true); setError('');
     try {
       const res = await fetch(`${BACKEND}/api/games/${roomCode.trim().toUpperCase()}`);
-      if (!res.ok) return setError('Sala no encontrada');
+      if (!res.ok) return setError(s.notFound);
       const game = await res.json();
       const photoPath = await uploadPhoto();
       onJoin(game.room_code, game.id, name.trim(), photoPath);
-    } catch { setError('Error al conectarse'); }
+    } catch { setError(s.joinError); }
     finally { setLoading(false); }
   };
 
@@ -67,9 +92,9 @@ export default function Home({ onJoin }) {
         initial={{ opacity: 0, y: -24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        style={{ marginBottom: 40, textAlign: 'center' }}
+        style={{ marginBottom: 52, textAlign: 'center' }}
       >
-        <div style={{ fontFamily: 'Fredoka One', fontSize: 64, color: 'var(--c-accent2)', letterSpacing: 2, lineHeight: 1 }}>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 92, color: 'var(--c-accent2)', letterSpacing: 2, lineHeight: 1 }}>
           Wave
         </div>
         <div style={{ fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, marginTop: 4, textTransform: 'uppercase' }}>
@@ -86,8 +111,8 @@ export default function Home({ onJoin }) {
           background: 'var(--c-surface)',
           borderRadius: 'var(--r-lg)',
           border: '1px solid var(--c-border2)',
-          padding: '28px 32px',
-          width: '100%', maxWidth: 400,
+          padding: '32px 44px',
+          width: '100%', maxWidth: 480,
           boxShadow: 'var(--shadow-window)',
         }}
       >
@@ -106,7 +131,7 @@ export default function Home({ onJoin }) {
                 letterSpacing: 0.3,
               }}
             >
-              {t === 'create' ? 'Crear sala' : 'Unirse'}
+              {t === 'create' ? s.create : s.join}
             </button>
           ))}
         </div>
@@ -131,8 +156,8 @@ export default function Home({ onJoin }) {
             }
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>Foto de perfil</div>
-            <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>Opcional · max 2MB</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{s.photo}</div>
+            <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>{s.optional}</div>
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
         </div>
@@ -140,7 +165,7 @@ export default function Home({ onJoin }) {
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="Tu nombre"
+          placeholder={s.namePlaceholder}
           maxLength={50}
           style={inputStyle}
         />
@@ -149,7 +174,7 @@ export default function Home({ onJoin }) {
           <input
             value={roomCode}
             onChange={e => setRoomCode(e.target.value.toUpperCase())}
-            placeholder="Código de sala"
+            placeholder={s.codePlaceholder}
             maxLength={8}
             style={{ ...inputStyle, fontFamily: 'Fredoka One', letterSpacing: 4, marginTop: 8 }}
           />
@@ -163,12 +188,12 @@ export default function Home({ onJoin }) {
           style={{ width: '100%', marginTop: 16 }}
           size="lg"
         >
-          {loading ? 'Cargando...' : tab === 'create' ? 'Crear sala' : 'Entrar'}
+          {loading ? s.loading : tab === 'create' ? s.createBtn : s.joinBtn}
         </Button>
       </motion.div>
 
       <div style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 12 }}>
-        El wavelength de la plebe
+        {s.tagline}
       </div>
     </div>
   );

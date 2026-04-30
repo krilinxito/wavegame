@@ -6,8 +6,10 @@ import Timer from '../shared/Timer';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
 import { slideUp } from '../../animations/variants';
+import { useLang } from '../../hooks/useLang';
 
 export default function ClueGiving() {
+  const L = useLang();
   const { round, category, myPlayer, players } = useGameStore();
   const [clue, setClue] = useState('');
 
@@ -30,12 +32,12 @@ export default function ClueGiving() {
       <motion.div {...slideUp} style={{ textAlign: 'center', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--c-muted)', fontWeight: 600 }}>
-            RONDA {round?.round_number}
+            {L.roundLabel2(round?.round_number)}
           </div>
           <Timer seconds={120} onExpire={handleTimerExpire} />
         </div>
         <h1 style={{ fontFamily: 'Fredoka One', fontSize: 28, background: 'linear-gradient(135deg, #7c3aed, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          {isPsychic ? '¡Sos el Psychic!' : `${round?.psychicName || 'El Psychic'} está pensando...`}
+          {isPsychic ? L.youArePsychic : L.psychicThinking(round?.psychicName || 'Psychic')}
         </h1>
       </motion.div>
 
@@ -49,14 +51,14 @@ export default function ClueGiving() {
       {isPsychic ? (
         <motion.div {...slideUp} style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ color: 'var(--c-muted)', fontSize: 14, textAlign: 'center' }}>
-            Dá una pista que ubique el espectro en <strong style={{ color: 'var(--c-text)' }}>{category?.term}</strong>
+            {L.clueHint(category?.term)}
           </p>
           <div style={{ display: 'flex', gap: 10 }}>
             <input
               value={clue}
               onChange={e => setClue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitClue()}
-              placeholder="Tu pista..."
+              placeholder={L.cluePlaceholder}
               maxLength={255}
               style={{
                 flex: 1,
@@ -69,7 +71,7 @@ export default function ClueGiving() {
                 outline: 'none',
               }}
             />
-            <Button onClick={() => submitClue()} disabled={!clue.trim()}>Enviar</Button>
+            <Button onClick={() => submitClue()} disabled={!clue.trim()}>{L.send}</Button>
           </div>
         </motion.div>
       ) : (
@@ -78,7 +80,7 @@ export default function ClueGiving() {
           transition={{ repeat: Infinity, duration: 2 }}
           style={{ color: 'var(--c-muted)', fontSize: 15, fontWeight: 600 }}
         >
-          Esperando la pista del Psychic...
+          {L.waitingClue}
         </motion.div>
       )}
     </div>

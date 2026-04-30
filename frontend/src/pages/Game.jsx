@@ -13,26 +13,28 @@ import Button from '../components/shared/Button';
 import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
+import { useLang } from '../hooks/useLang';
 
 const TEAM_COLORS = ['#6c63ff', '#f97316', '#10b981', '#ef4444', '#fbbf24'];
 const teamColor = (n) => TEAM_COLORS[(n - 1) % TEAM_COLORS.length];
 
 function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone }) {
+  const L = useLang();
   const otherTeams = Object.entries(teamRounds).filter(([tn]) => parseInt(tn) !== myTeamNum);
   if (!otherTeams.length) return null;
 
   const phaseLabel = (round) => {
     if (!round) return '—';
-    if (round.status === 'clue_giving') return '🧠 Dando pista…';
-    if (round.status === 'guessing') return '🎯 Adivinando…';
-    if (round.status === 'revealed' || round.status === 'done') return '✅ Listo';
+    if (round.status === 'clue_giving') return L.phaseClue;
+    if (round.status === 'guessing') return L.phaseGuessing;
+    if (round.status === 'revealed' || round.status === 'done') return L.phaseDone;
     return round.status;
   };
 
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-        Otros equipos
+        {L.otherTeams}
       </div>
       {otherTeams.map(([tn, tr]) => {
         const teamNum = parseInt(tn);
@@ -46,14 +48,14 @@ function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone })
             borderRadius: 10, padding: '10px 12px', marginBottom: 6,
           }}>
             <div style={{ fontWeight: 700, color, fontSize: 13, marginBottom: 4 }}>
-              Equipo {teamNum}
+              {L.team(teamNum)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--c-muted)', marginBottom: 4 }}>
               {phaseLabel(tr.round)}
             </div>
             {tr.round?.status === 'guessing' && (
               <div style={{ fontSize: 11, color: 'var(--c-muted)' }}>
-                {guessCount}/{eligibleCount} adivinaron
+                {L.guessedCount(guessCount, eligibleCount)}
               </div>
             )}
             {tr.round?.clue && tr.round.status !== 'clue_giving' && (
@@ -78,7 +80,7 @@ function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone })
       })}
       {allTeamRoundsDone && (
         <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textAlign: 'center', marginTop: 4 }}>
-          ✅ Todos los equipos terminaron
+          {L.allTeamsDone}
         </div>
       )}
     </div>
@@ -86,11 +88,11 @@ function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone })
 }
 
 function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
+  const L = useLang();
   const isTeams = gameOver.winnerTeam != null;
   const winnerTeamNum = gameOver.winnerTeam;
   const winnerColor = isTeams ? teamColor(winnerTeamNum) : getPlayerColor(gameOver.winner?.id);
 
-  // Teams: am I on the winning team?
   const isWinner = isTeams
     ? myPlayer?.team === winnerTeamNum
     : gameOver.winner?.id === myPlayer?.id;
@@ -111,7 +113,6 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isTeams) {
-    // Group players by team, compute team totals
     const teamMap = {};
     for (const p of (gameOver.finalScores || [])) {
       if (!p.team || p.is_spectator) continue;
@@ -126,10 +127,9 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Equipo ganador</div>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 48, color: winnerColor }}>Equipo {winnerTeamNum}</div>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 26, color: 'var(--c-muted)', marginTop: 2 }}>{gameOver.teamScore} pts en total</div>
-          {/* Show both winning team members */}
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{L.winnerTeamLabel}</div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 48, color: winnerColor }}>{L.teamName(winnerTeamNum)}</div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 26, color: 'var(--c-muted)', marginTop: 2 }}>{L.totalPts(gameOver.teamScore)}</div>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
             {(teamMap[winnerTeamNum]?.players || []).map(p => (
               <div key={p.id} style={{ textAlign: 'center' }}>
@@ -140,7 +140,6 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
           </div>
         </motion.div>
 
-        {/* All teams ranked */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
           style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 10 }}
         >
@@ -156,7 +155,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>{i + 1}.</span>
-                    <span style={{ fontFamily: 'Fredoka One', fontSize: 17, color }}>Equipo {team.teamNum}</span>
+                    <span style={{ fontFamily: 'Fredoka One', fontSize: 17, color }}>{L.teamName(team.teamNum)}</span>
                     {isWinningTeam && <span style={{ fontSize: 16 }}>🏆</span>}
                   </div>
                   <span style={{ fontFamily: 'Fredoka One', fontSize: 22, color }}>{team.total} pts</span>
@@ -173,20 +172,19 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
         </motion.div>
 
         {isHost
-          ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button></motion.div>
-          : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</motion.div>
+          ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>{L.returnLobby}</Button></motion.div>
+          : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>{L.waitingHost}</motion.div>
         }
         <ReactionBar />
       </div>
     );
   }
 
-  // Normal / basta mode
   const color = getPlayerColor(gameOver.winner?.id);
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{ fontFamily: 'Fredoka One', fontSize: 14, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Ganador</div>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 14, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{L.winnerLabel}</div>
         <div style={{ fontFamily: 'Fredoka One', fontSize: 52, color }}>{gameOver.winner?.display_name}</div>
         <div style={{ fontFamily: 'Fredoka One', fontSize: 28, color: 'var(--c-muted)', marginTop: 4 }}>{gameOver.winner?.score} pts</div>
       </motion.div>
@@ -205,8 +203,8 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
         })}
       </motion.div>
       {isHost
-        ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>Volver al lobby</Button></motion.div>
-        : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</motion.div>
+        ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>{L.returnLobby}</Button></motion.div>
+        : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>{L.waitingHost}</motion.div>
       }
       <ReactionBar />
     </div>
@@ -214,6 +212,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
 }
 
 export default function Game() {
+  const L = useLang();
   const { round, game, myPlayer, players, gameOver, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
   if (!game || !myPlayer) return null;
 
@@ -227,32 +226,30 @@ export default function Game() {
 
   if (gameOver) return <GameOver gameOver={gameOver} myPlayer={myPlayer} players={players} isHost={isHost} returnToLobby={returnToLobby} />;
 
-  // No categories left
   if (noCategories) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', gap: 20 }}>
         <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: 'var(--c-accent2)', marginBottom: 8 }}>Sin más categorías</div>
-          <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>Se acabaron las cartas del mazo</div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: 'var(--c-accent2)', marginBottom: 8 }}>{L.noMoreCategories}</div>
+          <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>{L.noMoreCategoriesDesc}</div>
         </motion.div>
         {isHost
-          ? <Button onClick={returnToLobby}>Volver al lobby</Button>
-          : <div style={{ color: 'var(--c-muted)', fontSize: 13 }}>Esperando al host...</div>
+          ? <Button onClick={returnToLobby}>{L.returnLobby}</Button>
+          : <div style={{ color: 'var(--c-muted)', fontSize: 13 }}>{L.waitingHost}</div>
         }
         <ReactionBar />
       </div>
     );
   }
 
-  // Waiting / spectator
   if (!round) {
     const hasTeamActivity = Object.keys(teamRounds).length > 0;
     return (
       <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 210px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
           {hasTeamActivity
-            ? <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Mirando la partida… 👁</div>
-            : <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>Preparando ronda...</div>
+            ? <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>{L.watchingGame}</div>
+            : <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>{L.preparingRound}</div>
           }
         </div>
         <div style={{ padding: '20px 18px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
@@ -271,7 +268,6 @@ export default function Game() {
   }
 
   const isRevealed = !!(revealData || ['revealing','scoring','done','revealed'].includes(round?.status));
-  // In teams mode, "next round" requires all teams to be done
   const canAdvanceRound = isRevealed && (!isTeamsMode || allTeamRoundsDone);
 
   return (
@@ -292,10 +288,10 @@ export default function Game() {
           <span style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
             {game.mode}
           </span>
-          <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>Ronda {round.round_number}</span>
+          <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>{L.roundLabel(round.round_number)}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>
-          {game.win_condition === 'points' ? `Meta: ${game.win_value} pts` : `${round.round_number} / ${game.win_value} rondas`}
+          {game.win_condition === 'points' ? L.goalPts(game.win_value) : L.roundsGoal(round.round_number, game.win_value)}
         </div>
       </div>
 
@@ -319,14 +315,14 @@ export default function Game() {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
                   style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}
                 >
-                  <Button onClick={advanceRound}>Siguiente ronda</Button>
+                  <Button onClick={advanceRound}>{L.nextRound}</Button>
                 </motion.div>
               )}
               {isHost && isTeamsMode && !allTeamRoundsDone && isRevealed && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                   style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}
                 >
-                  Esperando que el otro equipo termine…
+                  {L.waitingOtherTeam}
                 </motion.div>
               )}
             </motion.div>
@@ -335,7 +331,7 @@ export default function Game() {
 
         {isHost && round.status === 'guessing' && (
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-            <Button variant="ghost" onClick={requestReveal} size="sm">Revelar ahora</Button>
+            <Button variant="ghost" onClick={requestReveal} size="sm">{L.revealNow}</Button>
           </div>
         )}
       </div>

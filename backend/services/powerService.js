@@ -192,4 +192,33 @@ async function getActivePowers(roundId) {
     .map(p => ({ activatorId: p.player_id, targetId: p.target_player, powerName: p.name }));
 }
 
-module.exports = { offerPowers, purchasePower, queuePower, getQueuedPowers, applyQueuedPowers, activatePower, getActivePowers };
+async function carryOverPowers(previousRoundId, newRoundId) {
+  const prevPowers = await cache.getRoundPowers(previousRoundId);
+  const unused = prevPowers.filter(rp => rp.purchased && !rp.activated && !rp.queued);
+  const offers = {};
+  for (const rp of unused) {
+    const newRp = {
+      id: uuidv4(),
+      round_id: newRoundId,
+      player_id: rp.player_id,
+      power_id: rp.power_id,
+      name: rp.name,
+      cost: rp.cost,
+      description: rp.description,
+      purchased: true,
+      queued: false,
+      activated: false,
+      target_player: null,
+      activated_at: null,
+    };
+    await cache.setRoundPower(newRoundId, newRp);
+    offers[rp.player_id] = {
+      roundPowerId: newRp.id,
+      power: { id: rp.power_id, name: rp.name, cost: rp.cost, description: rp.description },
+      isFree: true,
+    };
+  }
+  return offers;
+}
+
+module.exports = { offerPowers, purchasePower, queuePower, getQueuedPowers, applyQueuedPowers, activatePower, getActivePowers, carryOverPowers };

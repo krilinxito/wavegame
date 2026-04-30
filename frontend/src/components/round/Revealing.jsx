@@ -5,33 +5,15 @@ import SpectrumDial from '../spectrum/SpectrumDial';
 import useGameStore from '../../store/gameStore';
 import { getPlayerColor } from '../shared/PlayerAvatar';
 import { playSfx } from '../../utils/sound';
-
-const REASON_LABELS = {
-  psychic_good_clue: { label: '🧠 Buena pista', color: '#10b981' },
-  psychic_no_hits:   { label: '💀 Nadie adivinó', color: '#ef4444' },
-  bullseye:            { label: '🎯 Bullseye!', color: '#ef4444' },
-  close:               { label: '🔥 Cerca',     color: '#f97316' },
-  near:                { label: '✓ Cerca',       color: '#fbbf24' },
-  miss:                { label: '✗ Errado',      color: '#6b7280' },
-  miss_escudo:         { label: '🛡️ Escudo',    color: '#3b82f6' },
-  miss_penalty:        { label: '⚠️ Penalidad', color: '#ef4444' },
-  basta_not_first:     { label: '—',             color: '#6b7280' },
-  basta_others_win:    { label: '+1 🎉',         color: '#10b981' },
-  cuartiles_bullseye:  { label: '🎯 Cuartil!',  color: '#ef4444' },
-  cuartiles_close:     { label: '🔥 Cuartil',   color: '#f97316' },
-  cuartiles_hit:       { label: '✓ Cuartil',    color: '#fbbf24' },
-  cuartiles_miss:      { label: '✗ Cuartil',    color: '#6b7280' },
-  bloqueo_blocked:     { label: '🚫 Bloqueado', color: '#ef4444' },
-  veneno_taken:        { label: '☠️ Veneno',    color: '#8b5cf6' },
-};
+import { useLang } from '../../hooks/useLang';
 
 export default function Revealing() {
+  const L = useLang();
   const { revealData, players, round, category, game, myPlayer, submittedGuesses } = useGameStore();
 
   const guesses = revealData?.guesses ?? [];
   const myResult = guesses.find(g => g.playerId === myPlayer?.id && g.guessPct !== null);
 
-  // Hooks must be before any conditional return
   useEffect(() => {
     if (!revealData) return;
     playSfx('sfx_reveal');
@@ -54,7 +36,6 @@ export default function Revealing() {
   const { targetPct, activePowers } = revealData;
   const myGotBullseye = myResult?.reason === 'bullseye';
   const psychicResult = guesses.find(g => g.playerId === round?.psychic_id && g.guessPct === null);
-  // Exclude the psychic's scoring entry (shown separately); keep everyone else including basta non-guessers (guessPct null)
   const sorted = [...guesses].filter(g => g.playerId !== round?.psychic_id).sort((a, b) => b.scoreDelta - a.scoreDelta);
 
   return (
@@ -63,13 +44,13 @@ export default function Revealing() {
         style={{ textAlign: 'center' }}
       >
         <div style={{ fontFamily: 'Fredoka One', fontSize: 26, background: 'linear-gradient(135deg, #ef4444, #fbbf24)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          ¡Reveal!
+          {L.revealTitle}
         </div>
         {category && (
           <div style={{ fontSize: 14, color: 'var(--c-muted)', marginTop: 4 }}>
             <span style={{ color: 'var(--c-text)', fontWeight: 700 }}>{category.term}</span>
             {' · '}
-            <span style={{ fontSize: 12 }}>Categoría de: {players.find(p => p.id === category.created_by)?.display_name}</span>
+            <span style={{ fontSize: 12 }}>{L.categoryOf(players.find(p => p.id === category.created_by)?.display_name)}</span>
           </div>
         )}
       </motion.div>
@@ -96,9 +77,9 @@ export default function Revealing() {
         >
           <span style={{ fontSize: 32 }}>🎯</span>
           <div>
-            <div style={{ fontFamily: 'Fredoka One', fontSize: 18, color: '#fbbf24' }}>¡Bullseye! Poder gratis</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 18, color: '#fbbf24' }}>{L.bullseyeFreePower}</div>
             <div style={{ fontSize: 13, color: 'var(--c-muted)', marginTop: 2 }}>
-              Vas a recibir un poder gratis al inicio de la próxima ronda
+              {L.bullseyeFreePowerDesc}
             </div>
           </div>
         </motion.div>
@@ -108,7 +89,7 @@ export default function Revealing() {
       {psychicResult && (() => {
         const psychic = players.find(p => p.id === psychicResult.playerId);
         const color = getPlayerColor(psychicResult.playerId);
-        const reason = REASON_LABELS[psychicResult.reason] || { label: psychicResult.reason, color: '#6b7280' };
+        const reason = L.reasonLabels[psychicResult.reason] || { label: psychicResult.reason, color: '#6b7280' };
         return (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             style={{ width: '100%', maxWidth: 480, background: `${color}11`, border: `1px solid ${color}33`, borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}
@@ -135,7 +116,7 @@ export default function Revealing() {
         {sorted.map((g, i) => {
           const player = players.find(p => p.id === g.playerId);
           const color = getPlayerColor(g.playerId);
-          const reason = REASON_LABELS[g.reason] || { label: g.reason, color: '#6b7280' };
+          const reason = L.reasonLabels[g.reason] || { label: g.reason, color: '#6b7280' };
           const isMe = g.playerId === myPlayer?.id;
 
           return (
@@ -171,14 +152,14 @@ export default function Revealing() {
         })}
       </motion.div>
 
-      {/* Basta arrival order with ms */}
+      {/* Basta arrival order */}
       {game?.mode === 'basta' && submittedGuesses.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
           style={{ width: '100%', maxWidth: 480 }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-            ⚡ Orden de llegada
+            {L.arrivalOrder}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {(() => {
@@ -221,7 +202,7 @@ export default function Revealing() {
           style={{ width: '100%', maxWidth: 480 }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-            ⚡ Poderes usados esta ronda
+            {L.powersUsed}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {activePowers.map((p, i) => {
@@ -229,7 +210,6 @@ export default function Revealing() {
               const target = players.find(pl => pl.id === p.targetId);
               const color = getPlayerColor(p.activatorId);
               const ICONS = { cuartiles: '🔭', veneno: '☠️', escudo: '🛡️', bloqueo: '🚫', switch: '🔄' };
-              const LABELS = { cuartiles: 'usó Cuartiles', veneno: 'tiró Veneno a', escudo: 'usó Escudo', bloqueo: 'bloqueó a', switch: 'hizo Switch con' };
               return (
                 <motion.div
                   key={i}
@@ -242,7 +222,7 @@ export default function Revealing() {
                 >
                   <span style={{ fontSize: 20 }}>{ICONS[p.powerName] ?? '✨'}</span>
                   <span style={{ fontWeight: 700, color }}>{activator?.display_name ?? '?'}</span>
-                  <span style={{ color: 'var(--c-muted)', fontSize: 13 }}>{LABELS[p.powerName] ?? p.powerName}</span>
+                  <span style={{ color: 'var(--c-muted)', fontSize: 13 }}>{L.powerUseLabels[p.powerName] ?? p.powerName}</span>
                   {target && (
                     <span style={{ fontWeight: 700, color: getPlayerColor(target.id) }}>
                       {target.display_name}

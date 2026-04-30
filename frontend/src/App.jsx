@@ -5,14 +5,25 @@ import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import AnimatedBackground from './components/shared/AnimatedBackground';
+import SettingsModal from './components/shared/SettingsModal';
+import { SettingsProvider } from './context/SettingsContext';
 import socket from './socket';
 import { useSocket } from './hooks/useSocket';
 import useGameStore from './store/gameStore';
 import { playMusic, stopMusic, playSfx } from './utils/sound';
 
 export default function App() {
+  return (
+    <SettingsProvider>
+      <AppInner />
+    </SettingsProvider>
+  );
+}
+
+function AppInner() {
   const [page, setPage] = useState('splash'); // 'splash' | 'home' | 'lobby' | 'game'
   const [error, setError] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
   const { game, round, gameOver } = useGameStore();
   const prevRoundStatusRef = React.useRef(null);
 
@@ -32,8 +43,8 @@ export default function App() {
     if (page === 'game') {
       if (gameOver)                        { playMusic('music_victory', { loop: false }); return; }
       if (!round)                          { stopMusic(); return; }
-      if (round.status === 'clue_giving')                                          { playMusic('music_clue'); return; }
-      if (round.status === 'guessing')                                              { playMusic('music_guess'); return; }
+      if (round.status === 'clue_giving')                                                                        { playMusic('music_clue'); return; }
+      if (['guessing','revealing','scoring','revealed','done'].includes(round.status)) { playMusic('music_guess'); return; }
       stopMusic();
     }
   }, [page, round?.status, !!gameOver]);
@@ -66,6 +77,23 @@ export default function App() {
   return (
     <>
       <AnimatedBackground />
+
+      {/* Settings button — hidden on splash */}
+      {page !== 'splash' && (
+        <button
+          onClick={() => setShowSettings(true)}
+          style={{
+            position: 'fixed', top: 14, right: 16, zIndex: 50,
+            background: 'var(--c-surface)', border: '1px solid var(--c-border2)',
+            borderRadius: 'var(--r-sm)', width: 36, height: 36,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontSize: 18,
+          }}
+        >
+          ⚙
+        </button>
+      )}
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
       {/* Global error toast */}
       <AnimatePresence>
         {error && (

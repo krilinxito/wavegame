@@ -1,14 +1,14 @@
 import { motion } from 'framer-motion';
 
 const BLOBS = [
-  { left: '8%',  top: '12%', size: 380, color: '#b83820', opacity: 0.09, duration: 9,  delay: 0   },
-  { left: '70%', top: '8%',  size: 300, color: '#7a4200', opacity: 0.10, duration: 11, delay: 2   },
-  { left: '80%', top: '65%', size: 420, color: '#b83820', opacity: 0.08, duration: 13, delay: 4   },
-  { left: '15%', top: '70%', size: 260, color: '#c84a00', opacity: 0.11, duration: 8,  delay: 1.5 },
-  { left: '48%', top: '40%', size: 200, color: '#7a4200', opacity: 0.07, duration: 10, delay: 3.5 },
+  { left: '8%',  top: '12%', size: 380, color: '#b83820', opacity: 0.32, duration: 9,  delay: 0   },
+  { left: '70%', top: '8%',  size: 300, color: '#7a4200', opacity: 0.30, duration: 11, delay: 2   },
+  { left: '80%', top: '65%', size: 420, color: '#b83820', opacity: 0.28, duration: 13, delay: 4   },
+  { left: '15%', top: '70%', size: 260, color: '#c84a00', opacity: 0.34, duration: 8,  delay: 1.5 },
+  { left: '48%', top: '40%', size: 200, color: '#7a4200', opacity: 0.26, duration: 10, delay: 3.5 },
 ];
 
-const GRAIN_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`;
+const GRAIN_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")`;
 
 export default function AnimatedBackground() {
   return (
@@ -27,7 +27,7 @@ export default function AnimatedBackground() {
             borderRadius: '50%',
             background: b.color,
             opacity: b.opacity,
-            filter: 'blur(70px)',
+            filter: 'blur(44px)',
             transform: 'translate(-50%, -50%)',
           }}
         />
@@ -39,7 +39,7 @@ export default function AnimatedBackground() {
         backgroundImage: GRAIN_SVG,
         backgroundRepeat: 'repeat',
         backgroundSize: '200px 200px',
-        opacity: 0.18,
+        opacity: 0.46,
       }} />
     </div>
   );
