@@ -83,7 +83,6 @@ export default function Home({ onJoin }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--c-bg)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: 24,
     }}>

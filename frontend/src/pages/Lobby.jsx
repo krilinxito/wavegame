@@ -88,7 +88,7 @@ export default function Lobby() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--c-bg)', padding: '28px 16px' }}>
+    <div style={{ minHeight: '100vh', padding: '28px 16px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         {/* Header */}

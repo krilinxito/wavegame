@@ -125,7 +125,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
       .sort((a, b) => b.total - a.total);
 
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{L.winnerTeamLabel}</div>
           <div style={{ fontFamily: 'Fredoka One', fontSize: 48, color: winnerColor }}>{L.teamName(winnerTeamNum)}</div>
@@ -182,7 +182,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
 
   const color = getPlayerColor(gameOver.winner?.id);
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', padding: 24 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ fontFamily: 'Fredoka One', fontSize: 14, color: 'var(--c-muted)', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{L.winnerLabel}</div>
         <div style={{ fontFamily: 'Fredoka One', fontSize: 52, color }}>{gameOver.winner?.display_name}</div>
@@ -228,7 +228,7 @@ export default function Game() {
 
   if (noCategories) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--c-bg)', gap: 20 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
         <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: 'var(--c-accent2)', marginBottom: 8 }}>{L.noMoreCategories}</div>
           <div style={{ color: 'var(--c-muted)', fontSize: 15 }}>{L.noMoreCategoriesDesc}</div>
@@ -272,7 +272,7 @@ export default function Game() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--c-bg)',
+      minHeight: '100vh',
       display: 'grid', gridTemplateColumns: '1fr 280px', gridTemplateRows: 'auto 1fr',
     }}>
       {/* Header */}
