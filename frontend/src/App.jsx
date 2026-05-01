@@ -108,10 +108,12 @@ function AppInner() {
         )}
       </AnimatePresence>
 
-      {page === 'splash' && <Splash onPlay={() => setPage('home')} />}
-      {page === 'home'  && <Home onJoin={handleJoin} />}
-      {page === 'lobby' && <Lobby />}
-      {page === 'game'  && <Game />}
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {page === 'splash' && <Splash onPlay={() => setPage('home')} />}
+        {page === 'home'  && <Home onJoin={handleJoin} />}
+        {page === 'lobby' && <Lobby />}
+        {page === 'game'  && <Game />}
+      </div>
     </>
   );
 }
