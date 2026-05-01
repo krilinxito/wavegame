@@ -273,17 +273,12 @@ async function triggerReveal(io, socket, roundId) {
 
     const winResult = await checkWinCondition(round.game_id);
     if (winResult.won) {
-      // Cleanup game data after game over
-      const gameData = await getGame(round.game_id);
       io.to(socket.data.roomCode).emit('game_over', {
         winner: winResult.winner,
         winnerTeam: winResult.winnerTeam ?? null,
         teamScore: winResult.teamScore ?? null,
         finalScores: updatedPlayers.sort((a, b) => b.score - a.score),
       });
-      if (gameData) {
-        await cache.cleanupGame(gameData.id, gameData.room_code);
-      }
     }
   }, 500);
 }
