@@ -10,10 +10,14 @@ import { useLang } from '../../hooks/useLang';
 
 export default function ClueGiving() {
   const L = useLang();
-  const { round, category, myPlayer, players } = useGameStore();
+  const { round, category, myPlayer, players, skipVotes } = useGameStore();
   const [clue, setClue] = useState('');
 
   const isPsychic = round?.psychic_id === myPlayer?.id;
+  const activeCount = players.filter(p => !p.is_spectator).length;
+  const myVoted = skipVotes?.includes(myPlayer?.id);
+
+  const voteSkip = () => socket.emit('vote_skip_category', { roundId: round.id });
 
   const submitClue = (text) => {
     const val = (text ?? clue).trim();
@@ -81,6 +85,31 @@ export default function ClueGiving() {
           style={{ color: 'var(--c-muted)', fontSize: 15, fontWeight: 600 }}
         >
           {L.waitingClue}
+        </motion.div>
+      )}
+
+      {!myPlayer?.is_spectator && (
+        <motion.div {...slideUp} style={{ textAlign: 'center' }}>
+          <button
+            onClick={voteSkip}
+            style={{
+              background: myVoted ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.05)',
+              border: `1.5px solid ${myVoted ? '#7c3aed' : 'rgba(255,255,255,0.12)'}`,
+              borderRadius: 10,
+              padding: '6px 14px',
+              color: myVoted ? '#a78bfa' : 'var(--c-muted)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              transition: 'all 0.15s',
+            }}
+          >
+            {myVoted ? L.skipVoted : L.voteSkip}
+            {' '}
+            <span style={{ color: (skipVotes?.length ?? 0) > 0 ? '#7c3aed' : 'var(--c-muted)', fontWeight: 700 }}>
+              {skipVotes?.length ?? 0}/{activeCount}
+            </span>
+          </button>
         </motion.div>
       )}
     </div>

@@ -151,29 +151,21 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
 
 export default function PowerCard() {
   const L = useLang();
-  const { myPower, myPowerPurchased, myPowerQueued, activePowers, players, myPlayer, round, game } = useGameStore();
-  const [open, setOpen]             = useState(false);
+  const { myPowers, activePowers, players, myPlayer, round, game } = useGameStore();
+  const [openPowerId, setOpenPowerId] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
-  const [used, setUsed]             = useState(false);
+  const [usedPowerIds, setUsedPowerIds] = useState(new Set());
 
   useEffect(() => {
-    setUsed(false);
+    setUsedPowerIds(new Set());
+    setOpenPowerId(null);
     setSelectedTarget(null);
-  }, [myPower?.roundPowerId]);
+  }, [round?.id]);
 
   if (game?.mode === 'teams') return null;
   if (round?.status !== 'guessing' && round?.status !== 'clue_giving') return null;
 
-  const isClueGiving  = round?.status === 'clue_giving';
-  const hasPower      = myPower && myPower.power !== null;
-  const { roundPowerId, power, isFree } = hasPower ? myPower : {};
-
-  const alreadyUsedThisRound = hasPower && activePowers.some(p => p.powerName === power.name);
-  const isQueued  = myPowerQueued && isClueGiving;
-  const isDone    = (myPowerQueued && !isClueGiving) || used;
-
-  const needsTarget = hasPower && ['veneno', 'bloqueo', 'switch'].includes(power.name);
-  const color       = hasPower ? (POWER_COLORS[power.name] || '#7c3aed') : '#7c3aed';
+  const isClueGiving = round?.status === 'clue_giving';
 
   const eligibleTargets = players.filter(p =>
     p.id !== myPlayer?.id &&
@@ -181,45 +173,46 @@ export default function PowerCard() {
     p.connected
   );
 
-  const handleBuy = () => {
+  const openPower = myPowers.find(p => p.roundPowerId === openPowerId) ?? null;
+
+  const handleBuy = (rp) => {
     playSfx('sfx_power_buy');
-    socket.emit('purchase_power', { roundPowerId, isFree: !!isFree });
-    setOpen(false);
+    socket.emit('purchase_power', { roundPowerId: rp.roundPowerId, isFree: !!rp.isFree });
+    setOpenPowerId(null);
   };
 
-  const handleUse = () => {
-    if (needsTarget && !selectedTarget) return;
+  const handleUse = (rp) => {
+    if (['veneno', 'bloqueo', 'switch'].includes(rp.power.name) && !selectedTarget) return;
     if (isClueGiving) {
       socket.emit('queue_power', {
-        roundPowerId,
+        roundPowerId: rp.roundPowerId,
         targetPlayerId: selectedTarget || null,
         isFree: true,
       });
-      setOpen(false);
+      setOpenPowerId(null);
     } else {
       socket.emit('activate_power', {
-        roundPowerId,
+        roundPowerId: rp.roundPowerId,
         targetPlayerId: selectedTarget || null,
         isFree: true,
       });
-      setUsed(true);
-      setOpen(false);
+      setUsedPowerIds(prev => new Set([...prev, rp.roundPowerId]));
+      setOpenPowerId(null);
     }
+    setSelectedTarget(null);
   };
 
   const slots = Array.from({ length: SLOTS }, (_, i) => {
-    if (i === 0 && hasPower && !isDone) {
-      return {
-        type: 'power',
-        power, isFree, purchased: myPowerPurchased,
-        queued: isQueued, alreadyUsed: alreadyUsedThisRound,
-      };
-    }
-    return { type: 'empty' };
+    const rp = myPowers[i];
+    if (!rp) return { type: 'empty' };
+    const isQueued   = rp.queued && isClueGiving;
+    const isDone     = (rp.queued && !isClueGiving) || usedPowerIds.has(rp.roundPowerId);
+    if (isDone) return { type: 'empty' };
+    const alreadyUsed = activePowers.some(p => p.powerName === rp.power.name);
+    return { type: 'power', rp, isQueued, alreadyUsed };
   });
 
-  const isStep1 = !myPowerPurchased;
-  const actionLabel = isStep1 ? (isFree ? L.redeemFree : L.buy) : isClueGiving ? L.reserve : L.use;
+  const anyQueued = myPowers.some(rp => rp.queued && isClueGiving);
 
   return (
     <>
@@ -249,14 +242,14 @@ export default function PowerCard() {
           {slots.map((slot, i) =>
             slot.type === 'power' ? (
               <PowerSlot
-                key={i}
-                power={slot.power}
-                isFree={slot.isFree}
-                purchased={slot.purchased}
-                queued={slot.queued}
+                key={slot.rp.roundPowerId}
+                power={slot.rp.power}
+                isFree={slot.rp.isFree}
+                purchased={slot.rp.purchased}
+                queued={slot.isQueued}
                 alreadyUsed={slot.alreadyUsed}
                 isClueGiving={isClueGiving}
-                onClick={() => setOpen(true)}
+                onClick={() => { setSelectedTarget(null); setOpenPowerId(slot.rp.roundPowerId); }}
               />
             ) : (
               <EmptySlot key={i} />
@@ -264,110 +257,119 @@ export default function PowerCard() {
           )}
         </div>
 
-        {isQueued && (
-          <div style={{ fontSize: 10, color, textAlign: 'center', marginTop: -2 }}>
+        {anyQueued && (
+          <div style={{ fontSize: 10, color: '#7c3aed', textAlign: 'center', marginTop: -2 }}>
             {L.activatesOnGuess}
           </div>
         )}
       </motion.div>
 
-      {hasPower && !isDone && (
+      {openPower && (
         <Modal
-          open={open}
-          onClose={() => setOpen(false)}
-          title={`${POWER_ICONS[power.name] || '✨'} ${power.name}`}
+          open={!!openPowerId}
+          onClose={() => setOpenPowerId(null)}
+          title={`${POWER_ICONS[openPower.power.name] || '✨'} ${openPower.power.name}`}
         >
-          <p style={{ color: 'var(--c-muted)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
-            {power.description}
-          </p>
+          {(() => {
+            const rp = openPower;
+            const color = POWER_COLORS[rp.power.name] || '#7c3aed';
+            const isStep1 = !rp.purchased;
+            const needsTarget = ['veneno', 'bloqueo', 'switch'].includes(rp.power.name);
+            const actionLabel = isStep1 ? (rp.isFree ? L.redeemFree : L.buy) : isClueGiving ? L.reserve : L.use;
 
-          {/* Step indicator */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-            {[L.buy, L.use].map((step, i) => {
-              const active = isStep1 ? i === 0 : i === 1;
-              const done   = !isStep1 && i === 0;
-              return (
-                <div key={i} style={{
-                  flex: 1, padding: '6px 8px', borderRadius: 8, textAlign: 'center',
-                  fontSize: 11, fontWeight: 700,
-                  background: done ? `${color}22` : active ? `${color}33` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${done || active ? color : 'rgba(255,255,255,0.08)'}`,
-                  color: done ? `${color}88` : active ? color : 'var(--c-muted)',
-                }}>
-                  {done ? `✓ ${step}` : `${i + 1}. ${step}`}
+            return (
+              <>
+                <p style={{ color: 'var(--c-muted)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
+                  {rp.power.description}
+                </p>
+
+                <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                  {[L.buy, L.use].map((step, i) => {
+                    const active = isStep1 ? i === 0 : i === 1;
+                    const done   = !isStep1 && i === 0;
+                    return (
+                      <div key={i} style={{
+                        flex: 1, padding: '6px 8px', borderRadius: 8, textAlign: 'center',
+                        fontSize: 11, fontWeight: 700,
+                        background: done ? `${color}22` : active ? `${color}33` : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${done || active ? color : 'rgba(255,255,255,0.08)'}`,
+                        color: done ? `${color}88` : active ? color : 'var(--c-muted)',
+                      }}>
+                        {done ? `✓ ${step}` : `${i + 1}. ${step}`}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Step 1: buy info */}
-          {isStep1 && (
-            <div style={{ background: isFree ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)', border: isFree ? '1px solid #fbbf2444' : 'none', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
-              {isFree ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>🎯</span>
-                  <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>{L.freePowerBullseye}</span>
-                </span>
-              ) : (
-                <>
-                  <span style={{ color: 'var(--c-muted)' }}>{L.costLabel} </span>
-                  <span style={{ fontFamily: 'Fredoka One', color, fontSize: 20 }}>{power.cost} pts</span>
-                  <span style={{ color: 'var(--c-muted)', fontSize: 12, marginLeft: 8 }}>
-                    {L.savedInventory}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Step 2: use info + target */}
-          {!isStep1 && (
-            <>
-              {isClueGiving && (
-                <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>⏳</span>
-                  <span>{L.autoActivate}</span>
-                </div>
-              )}
-              {needsTarget && (
-                <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>{L.choosePlayer}</p>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {eligibleTargets.map(p => (
-                      <motion.button
-                        key={p.id}
-                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => setSelectedTarget(p.id)}
-                        style={{
-                          background: selectedTarget === p.id ? color + '33' : 'rgba(255,255,255,0.05)',
-                          border: `2px solid ${selectedTarget === p.id ? color : 'rgba(255,255,255,0.1)'}`,
-                          borderRadius: 12, padding: '8px 14px',
-                          cursor: 'pointer', color: 'var(--c-text)',
-                          fontFamily: 'Nunito, sans-serif', fontWeight: 700,
-                          display: 'flex', alignItems: 'center', gap: 8,
-                        }}
-                      >
-                        <PlayerAvatar player={p} size={28} />
-                        {p.display_name}
-                      </motion.button>
-                    ))}
+                {isStep1 && (
+                  <div style={{ background: rp.isFree ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)', border: rp.isFree ? '1px solid #fbbf2444' : 'none', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14 }}>
+                    {rp.isFree ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>🎯</span>
+                        <span style={{ fontFamily: 'Fredoka One', color: '#fbbf24', fontSize: 16 }}>{L.freePowerBullseye}</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ color: 'var(--c-muted)' }}>{L.costLabel} </span>
+                        <span style={{ fontFamily: 'Fredoka One', color, fontSize: 20 }}>{rp.power.cost} pts</span>
+                        <span style={{ color: 'var(--c-muted)', fontSize: 12, marginLeft: 8 }}>
+                          {L.savedInventory}
+                        </span>
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <Button variant="ghost" onClick={() => setOpen(false)}>{L.cancel}</Button>
-            <Button
-              variant="primary"
-              onClick={isStep1 ? handleBuy : handleUse}
-              disabled={!isStep1 && needsTarget && !selectedTarget}
-              style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
-            >
-              {actionLabel}
-            </Button>
-          </div>
+                {!isStep1 && (
+                  <>
+                    {isClueGiving && (
+                      <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--c-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>⏳</span>
+                        <span>{L.autoActivate}</span>
+                      </div>
+                    )}
+                    {needsTarget && (
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 13, color: 'var(--c-muted)', marginBottom: 10 }}>{L.choosePlayer}</p>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          {eligibleTargets.map(p => (
+                            <motion.button
+                              key={p.id}
+                              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedTarget(p.id)}
+                              style={{
+                                background: selectedTarget === p.id ? color + '33' : 'rgba(255,255,255,0.05)',
+                                border: `2px solid ${selectedTarget === p.id ? color : 'rgba(255,255,255,0.1)'}`,
+                                borderRadius: 12, padding: '8px 14px',
+                                cursor: 'pointer', color: 'var(--c-text)',
+                                fontFamily: 'Nunito, sans-serif', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                              }}
+                            >
+                              <PlayerAvatar player={p} size={28} />
+                              {p.display_name}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <Button variant="ghost" onClick={() => setOpenPowerId(null)}>{L.cancel}</Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => isStep1 ? handleBuy(rp) : handleUse(rp)}
+                    disabled={!isStep1 && needsTarget && !selectedTarget}
+                    style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
+                  >
+                    {actionLabel}
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
         </Modal>
       )}
     </>

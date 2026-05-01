@@ -38,6 +38,7 @@ export default function Lobby() {
     score_bullseye: game?.score_bullseye ?? 4,
     score_close:    game?.score_close    ?? 3,
     score_near:     game?.score_near     ?? 2,
+    min_score:      game?.min_score      ?? null,
   });
 
   if (!game || !myPlayer) return null;
@@ -373,6 +374,18 @@ export default function Lobby() {
                           </button>
                         ))}
                       </div>
+
+                      <div style={labelStyle}>{L.minScore}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+                        {[null, -10, -4, 0].map(v => (
+                          <button key={String(v)} onClick={() => { playSfx('sfx_click_alt'); setConfig(c => ({ ...c, min_score: v })); }}
+                            style={{ background: config.min_score === v ? 'var(--c-accent)' : 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '5px 4px', cursor: 'pointer', color: config.min_score === v ? '#fff' : 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 12, fontWeight: 700 }}
+                          >
+                            {v === null ? L.minScoreNone : v}
+                          </button>
+                        ))}
+                      </div>
+
                       <Button onClick={saveConfig} variant="secondary" size="sm">{L.save}</Button>
                     </motion.div>
                   )}

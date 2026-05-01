@@ -7,15 +7,14 @@ const useGameStore = create((set, get) => ({
   myPlayer: null,
   round: null,
   category: null,
-  myPower: null,         // { roundPowerId, power }
-  myPowerPurchased: false, // true cuando el jugador pagó el poder (paso 1)
-  myPowerQueued: false,    // true cuando el jugador encoló su poder y espera la adivinación
+  myPowers: [],          // [{ roundPowerId, power, isFree, purchased, queued }] — hasta 3
   revealData: null,      // { targetPct, guesses, activePowers }
   gameOver: null,        // { winner, finalScores }
   noCategories: false,
   categories: [],        // lobby categories list
   activePowers: [],      // powers activated this round (for UI display)
   submittedGuesses: [],  // { playerId, playerName, photoPath, guessPct } — real-time guesses
+  skipVotes: [],         // playerIds que votaron skipear la categoría actual
   // Teams mode parallel rounds
   teamRounds: {},        // { [teamNum]: { round, category, revealData, submittedGuesses } }
   allTeamRoundsDone: false,
@@ -26,12 +25,11 @@ const useGameStore = create((set, get) => ({
   setMyPlayer: (myPlayer) => set({ myPlayer }),
   setRound: (round) => set({ round }),
   setCategory: (category) => set({ category }),
-  setMyPower: (myPower) => set({ myPower }),
-  setMyPowerPurchased: (myPowerPurchased) => set({ myPowerPurchased }),
-  setMyPowerQueued: (myPowerQueued) => set({ myPowerQueued }),
+  setMyPowers: (myPowers) => set({ myPowers }),
   setRevealData: (revealData) => set({ revealData }),
   setGameOver: (gameOver) => set({ gameOver }),
   setCategories: (categories) => set({ categories }),
+  setSkipVotes: (skipVotes) => set({ skipVotes }),
 
   updatePlayer: (player) => set(state => ({
     players: state.players.map(p => p.id === player.id ? player : p),
@@ -65,17 +63,16 @@ const useGameStore = create((set, get) => ({
   })),
 
   clearRound: () => set({
-    round: null, category: null, myPower: null,
-    myPowerPurchased: false, myPowerQueued: false,
+    round: null, category: null, myPowers: [],
     revealData: null, activePowers: [], submittedGuesses: [],
-    teamRounds: {}, allTeamRoundsDone: false,
+    skipVotes: [], teamRounds: {}, allTeamRoundsDone: false,
   }),
 
   reset: () => set({
     game: null, players: [], myPlayer: null, round: null,
-    category: null, myPower: null, myPowerPurchased: false, myPowerQueued: false,
+    category: null, myPowers: [],
     revealData: null, gameOver: null, noCategories: false, categories: [], activePowers: [],
-    teamRounds: {}, allTeamRoundsDone: false,
+    skipVotes: [], teamRounds: {}, allTeamRoundsDone: false,
   }),
 }));
 

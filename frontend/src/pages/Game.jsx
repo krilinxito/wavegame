@@ -278,7 +278,7 @@ export default function Game() {
       {/* Header */}
       <div style={{
         gridColumn: '1 / -1',
-        padding: '12px 20px',
+        padding: '12px 64px 12px 20px',
         borderBottom: '1px solid var(--c-border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: 'var(--c-surface)',

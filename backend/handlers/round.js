@@ -1,5 +1,5 @@
 const cache = require('../cache/redis');
-const { getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone } = require('../services/roundService');
+const { getRound, getRoundsForRoundNumber, setClue, getGuesses, submitGuess, saveScoreDeltas, markRevealed, markDone, getUnusedCategory, markCategoryUsed } = require('../services/roundService');
 const { computeScore, resolveBasta } = require('../services/scoringService');
 const { getActivePowers, applyQueuedPowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
@@ -95,6 +95,59 @@ module.exports = function roundHandlers(io, socket) {
     } catch (err) {
       console.error('submit_guess error:', err);
       socket.emit('error', { code: 'GUESS_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('vote_skip_category', async ({ roundId }) => {
+    try {
+      const playerId = socket.data.playerId;
+      const gameId = socket.data.gameId;
+
+      const round = await getRound(roundId);
+      if (!round || round.status !== 'clue_giving') return;
+
+      const player = await cache.getPlayer(gameId, playerId);
+      if (!player || player.is_spectator) return;
+
+      if (round.team_num && player.team !== round.team_num) return;
+
+      await cache.toggleSkipVote(roundId, playerId);
+      const votes = await cache.getSkipVotes(roundId);
+
+      const allPlayers = await cache.getPlayers(gameId);
+      const eligible = round.team_num
+        ? allPlayers.filter(p => p.team === round.team_num && !p.is_spectator && p.connected)
+        : allPlayers.filter(p => !p.is_spectator && p.connected);
+
+      io.to(socket.data.roomCode).emit('skip_vote_updated', {
+        roundId,
+        votes,
+        total: eligible.length,
+      });
+
+      if (votes.length > eligible.length / 2) {
+        await cache.clearSkipVotes(roundId);
+
+        const newCategory = await getUnusedCategory(gameId);
+        if (!newCategory) {
+          io.to(socket.data.roomCode).emit('skip_vote_updated', { roundId, votes: [], total: eligible.length });
+          return;
+        }
+        await markCategoryUsed(gameId, newCategory.id);
+
+        io.to(socket.data.roomCode).emit('category_skipped', {
+          roundId,
+          newCategory: {
+            id: newCategory.id,
+            term: newCategory.term,
+            left_extreme: newCategory.left_extreme,
+            right_extreme: newCategory.right_extreme,
+            created_by: newCategory.created_by,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('vote_skip_category error:', err);
     }
   });
 

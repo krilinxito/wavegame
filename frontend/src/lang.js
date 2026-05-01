@@ -37,6 +37,8 @@ export const LANG = {
     zoneClose: 'Cerca',
     zoneNear: 'Casi',
     guessTime: 'Tiempo de adivinación',
+    minScore: 'Puntaje mínimo',
+    minScoreNone: 'Sin límite',
     save: 'Guardar',
     startGame: 'Iniciar partida',
     waitingHost: 'Esperando al host...',
@@ -89,6 +91,8 @@ export const LANG = {
     send: 'Enviar',
     waitingClue: 'Esperando la pista del Psychic...',
     roundLabel2: (n) => `RONDA ${n}`,
+    voteSkip: 'Skipear categoría',
+    skipVoted: '✓ Votaste skipear',
 
     // Guessing
     roundGuess: (n) => `RONDA ${n} · ADIVINANZA`,
@@ -187,6 +191,8 @@ export const LANG = {
     zoneClose: 'Close',
     zoneNear: 'Near',
     guessTime: 'Guess time',
+    minScore: 'Minimum score',
+    minScoreNone: 'No limit',
     save: 'Save',
     startGame: 'Start game',
     waitingHost: 'Waiting for host...',
@@ -239,6 +245,8 @@ export const LANG = {
     send: 'Send',
     waitingClue: "Waiting for the Psychic's clue...",
     roundLabel2: (n) => `ROUND ${n}`,
+    voteSkip: 'Skip category',
+    skipVoted: '✓ You voted to skip',
 
     // Guessing
     roundGuess: (n) => `ROUND ${n} · GUESS`,

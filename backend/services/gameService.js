@@ -10,7 +10,7 @@ async function getGameByCode(code) {
   return cache.getGame(gameId);
 }
 
-async function updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time, score_bullseye, score_close, score_near }) {
+async function updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time, score_bullseye, score_close, score_near, min_score }) {
   const game = await cache.getGame(gameId);
   if (!game) return;
   Object.assign(game, {
@@ -23,6 +23,7 @@ async function updateGameConfig(gameId, { mode, range_min, range_max, win_condit
     score_bullseye: score_bullseye ?? 4,
     score_close: score_close ?? 3,
     score_near: score_near ?? 2,
+    min_score: min_score ?? null,
   });
   await cache.setGame(game);
 }

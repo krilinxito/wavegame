@@ -78,12 +78,12 @@ module.exports = function lobbyHandlers(io, socket) {
     }
   });
 
-  socket.on('host_update_config', async ({ gameId, mode, range_min, range_max, win_condition, win_value, guess_time }) => {
+  socket.on('host_update_config', async ({ gameId, mode, range_min, range_max, win_condition, win_value, guess_time, score_bullseye, score_close, score_near, min_score }) => {
     try {
       const player = await cache.getPlayer(gameId, socket.data.playerId);
       if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede cambiar la config' });
 
-      await updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time });
+      await updateGameConfig(gameId, { mode, range_min, range_max, win_condition, win_value, guess_time, score_bullseye, score_close, score_near, min_score });
       const game = await getGame(gameId);
       io.to(socket.data.roomCode).emit('config_updated', { game });
     } catch (err) {
@@ -331,18 +331,31 @@ async function startNextRound(io, roomCode, gameId, mode) {
   // Carry-over: players with purchased but unused powers from last round keep them
   const allRounds = await cache.getRoundsForGame(gameId);
   const prevRound = allRounds.find(r => r.round_number === game.current_round - 1);
+  // carryOverOffers: { playerId: [{ roundPowerId, power, isFree, purchased }] }
   const carryOverOffers = prevRound ? await carryOverPowers(prevRound.id, round.id) : {};
-  const playersWithCarryOver = new Set(Object.keys(carryOverOffers));
 
-  // Exclude carry-over players from normal offer pool (they already have a power)
-  const offeredNonPsychicIds = nonPsychicIds.filter(id => !playersWithCarryOver.has(id));
+  // Count carry-over powers per player to respect the 3-slot limit
+  const carryOverCounts = {};
+  for (const [playerId, offers] of Object.entries(carryOverOffers)) {
+    carryOverCounts[playerId] = offers.length;
+  }
 
-  // Bug fix: if psychic earned a guaranteed power (bullseye) and has no carry-over, include them
-  const psychicNeedsGuarantee = guaranteedIds.has(psychic.id) && !playersWithCarryOver.has(psychic.id);
-  const allOfferedIds = psychicNeedsGuarantee ? [...offeredNonPsychicIds, psychic.id] : offeredNonPsychicIds;
+  // All non-psychic players can receive new offers if they have < 3 powers
+  const psychicNeedsGuarantee = guaranteedIds.has(psychic.id) && (carryOverCounts[psychic.id] ?? 0) < 3;
+  const allOfferedIds = psychicNeedsGuarantee ? [...nonPsychicIds, psychic.id] : nonPsychicIds;
 
-  const powerOffers = await offerPowers(round.id, allOfferedIds, mode, guaranteedIds);
-  const allOffers = { ...carryOverOffers, ...powerOffers };
+  // powerOffers: { playerId: [{ roundPowerId, power, isFree, purchased }] }
+  const powerOffers = await offerPowers(round.id, allOfferedIds, mode, guaranteedIds, carryOverCounts);
+
+  // Merge carry-over and new offers per player
+  const allOffers = { ...carryOverOffers };
+  for (const [playerId, offers] of Object.entries(powerOffers)) {
+    if (allOffers[playerId]) {
+      allOffers[playerId] = [...allOffers[playerId], ...offers];
+    } else {
+      allOffers[playerId] = offers;
+    }
+  }
 
   const roundPublic = { ...round, target_pct: undefined };
   io.to(roomCode).emit('round_started', {
@@ -359,10 +372,17 @@ async function startNextRound(io, roomCode, gameId, mode) {
     io.to(psychic.socket_id).emit('psychic_target', { roundId: round.id, targetPct: round.target_pct });
   }
 
-  for (const [playerId, offer] of Object.entries(allOffers)) {
+  for (const [playerId, offers] of Object.entries(allOffers)) {
     const p = players.find(pl => pl.id === playerId);
     if (p?.socket_id) {
-      io.to(p.socket_id).emit('power_offered', { roundPowerId: offer.roundPowerId, power: offer.power, isFree: !!offer.isFree });
+      for (const offer of offers) {
+        io.to(p.socket_id).emit('power_offered', {
+          roundPowerId: offer.roundPowerId,
+          power: offer.power,
+          isFree: !!offer.isFree,
+          purchased: !!offer.purchased,
+        });
+      }
     }
   }
 }

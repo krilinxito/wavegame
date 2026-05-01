@@ -85,10 +85,11 @@ async function getRoundsForGame(gameId) {
 }
 
 // --- Round Powers ---
-// Indexed by playerId for fast lookup per player, + pointer by roundPowerId
+// Indexed by rp.id to allow multiple powers per player per round
 async function getRoundPowerByPlayer(roundId, playerId) {
-  const data = await client.hget(`round_powers:${roundId}`, playerId);
-  return data ? JSON.parse(data) : null;
+  const hash = await client.hgetall(`round_powers:${roundId}`);
+  if (!hash) return [];
+  return Object.values(hash).map(v => JSON.parse(v)).filter(rp => rp.player_id === playerId);
 }
 async function getRoundPowers(roundId) {
   const hash = await client.hgetall(`round_powers:${roundId}`);
@@ -96,16 +97,12 @@ async function getRoundPowers(roundId) {
   return Object.values(hash).map(v => JSON.parse(v));
 }
 async function getRoundPowerById(roundPowerId) {
-  const ptr = await client.get(`rp:${roundPowerId}`);
-  if (!ptr) return null;
-  const sep = ptr.indexOf(':');
-  const roundId = ptr.substring(0, sep);
-  const playerId = ptr.substring(sep + 1);
-  return getRoundPowerByPlayer(roundId, playerId);
+  const data = await client.get(`rp:${roundPowerId}`);
+  return data ? JSON.parse(data) : null;
 }
 async function setRoundPower(roundId, rp) {
-  await client.hset(`round_powers:${roundId}`, rp.player_id, JSON.stringify(rp));
-  await client.set(`rp:${rp.id}`, `${roundId}:${rp.player_id}`);
+  await client.hset(`round_powers:${roundId}`, rp.id, JSON.stringify(rp));
+  await client.set(`rp:${rp.id}`, JSON.stringify(rp));
   await client.sadd(`rp_ids:${roundId}`, rp.id);
 }
 
@@ -148,13 +145,30 @@ async function cleanupRounds(gameId) {
   const keysToDelete = [`rounds:${gameId}`];
 
   for (const roundId of roundIds) {
-    keysToDelete.push(`round:${roundId}`, `round_powers:${roundId}`, `guesses:${roundId}`);
+    keysToDelete.push(`round:${roundId}`, `round_powers:${roundId}`, `guesses:${roundId}`, `skip_votes:${roundId}`);
     const rpIds = await client.smembers(`rp_ids:${roundId}`);
     for (const rpId of rpIds) keysToDelete.push(`rp:${rpId}`);
     keysToDelete.push(`rp_ids:${roundId}`);
   }
 
   if (keysToDelete.length) await client.del(...keysToDelete);
+}
+
+// --- Skip votes ---
+async function getSkipVotes(roundId) {
+  return client.smembers(`skip_votes:${roundId}`);
+}
+async function toggleSkipVote(roundId, playerId) {
+  const already = await client.sismember(`skip_votes:${roundId}`, playerId);
+  if (already) {
+    await client.srem(`skip_votes:${roundId}`, playerId);
+    return false;
+  }
+  await client.sadd(`skip_votes:${roundId}`, playerId);
+  return true;
+}
+async function clearSkipVotes(roundId) {
+  await client.del(`skip_votes:${roundId}`);
 }
 
 module.exports = {
@@ -167,4 +181,5 @@ module.exports = {
   getRoundPowerByPlayer, getRoundPowers, getRoundPowerById, setRoundPower,
   getGuess, getGuesses, setGuess,
   cleanupGame, cleanupRounds,
+  getSkipVotes, toggleSkipVote, clearSkipVotes,
 };

@@ -3,17 +3,20 @@ const POWERS = require('../cache/powers');
 
 const uuidv4 = () => require('crypto').randomUUID();
 
-async function offerPowers(roundId, playerIds, mode, guaranteedIds = new Set()) {
+// Returns { playerId: [{ roundPowerId, power, isFree, purchased }] }
+// carryOverCounts: { playerId: number } — existing slots already used this round
+async function offerPowers(roundId, playerIds, mode, guaranteedIds = new Set(), carryOverCounts = {}) {
   if (mode === 'teams') return {};
 
   const offers = {};
 
   for (const playerId of playerIds) {
+    const existingCount = carryOverCounts[playerId] ?? 0;
+    if (existingCount >= 3) continue;
+
     const isFree = guaranteedIds.has(playerId);
-    if (!isFree && Math.random() < 0.25) {
-      offers[playerId] = { roundPowerId: null, power: null, isFree: false };
-      continue;
-    }
+    if (!isFree && Math.random() < 0.25) continue;
+
     const power = POWERS[Math.floor(Math.random() * POWERS.length)];
     const rp = {
       id: uuidv4(),
@@ -30,7 +33,8 @@ async function offerPowers(roundId, playerIds, mode, guaranteedIds = new Set()) 
       activated_at: null,
     };
     await cache.setRoundPower(roundId, rp);
-    offers[playerId] = { roundPowerId: rp.id, power, isFree };
+    if (!offers[playerId]) offers[playerId] = [];
+    offers[playerId].push({ roundPowerId: rp.id, power, isFree, purchased: false });
   }
 
   return offers;
@@ -192,6 +196,7 @@ async function getActivePowers(roundId) {
     .map(p => ({ activatorId: p.player_id, targetId: p.target_player, powerName: p.name }));
 }
 
+// Returns { playerId: [{ roundPowerId, power, isFree: true, purchased: true }] }
 async function carryOverPowers(previousRoundId, newRoundId) {
   const prevPowers = await cache.getRoundPowers(previousRoundId);
   const unused = prevPowers.filter(rp => rp.purchased && !rp.activated && !rp.queued);
@@ -212,11 +217,13 @@ async function carryOverPowers(previousRoundId, newRoundId) {
       activated_at: null,
     };
     await cache.setRoundPower(newRoundId, newRp);
-    offers[rp.player_id] = {
+    if (!offers[rp.player_id]) offers[rp.player_id] = [];
+    offers[rp.player_id].push({
       roundPowerId: newRp.id,
       power: { id: rp.power_id, name: rp.name, cost: rp.cost, description: rp.description },
       isFree: true,
-    };
+      purchased: true,
+    });
   }
   return offers;
 }

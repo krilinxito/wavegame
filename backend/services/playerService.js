@@ -15,7 +15,9 @@ async function updatePlayerSocket(gameId, playerId, socketId, connected = true) 
 async function updatePlayerScore(gameId, playerId, delta) {
   const player = await cache.getPlayer(gameId, playerId);
   if (!player) return;
-  player.score = (player.score || 0) + delta;
+  const game = await cache.getGame(gameId);
+  const newScore = (player.score || 0) + delta;
+  player.score = (game?.min_score != null) ? Math.max(game.min_score, newScore) : newScore;
   await cache.setPlayer(gameId, player);
 }
 

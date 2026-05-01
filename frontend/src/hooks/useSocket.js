@@ -37,9 +37,8 @@ export function useSocket() {
       store.setRound({ ...round, psychicName });
       store.setCategory(category);
       store.setRevealData(null);
-      store.setMyPower(null);
       store.setGameOver(null);
-      useGameStore.setState({ activePowers: [], submittedGuesses: [], teamRounds: {}, allTeamRoundsDone: false, myPowerQueued: false, myPowerPurchased: false });
+      useGameStore.setState({ activePowers: [], submittedGuesses: [], skipVotes: [], teamRounds: {}, allTeamRoundsDone: false, myPowers: [] });
     });
 
     socket.on('team_rounds_started', ({ teamRounds }) => {
@@ -62,13 +61,11 @@ export function useSocket() {
         round: myTeamData?.round ?? null,
         category: myTeamData?.category ?? null,
         revealData: null,
-        myPower: null,
+        myPowers: [],
         gameOver: null,
         activePowers: [],
         submittedGuesses: [],
         allTeamRoundsDone: false,
-        myPowerQueued: false,
-        myPowerPurchased: false,
       });
     });
 
@@ -146,16 +143,24 @@ export function useSocket() {
       });
     });
 
-    socket.on('power_offered', ({ roundPowerId, power, isFree }) => {
-      store.setMyPower({ roundPowerId, power, isFree: !!isFree });
+    socket.on('power_offered', ({ roundPowerId, power, isFree, purchased }) => {
+      useGameStore.setState(state => {
+        if (state.myPowers.length >= 3) return {};
+        if (state.myPowers.some(p => p.roundPowerId === roundPowerId)) return {};
+        return { myPowers: [...state.myPowers, { roundPowerId, power, isFree: !!isFree, purchased: !!purchased, queued: false }] };
+      });
     });
 
-    socket.on('power_purchased', () => {
-      store.setMyPowerPurchased(true);
+    socket.on('power_purchased', ({ roundPowerId }) => {
+      useGameStore.setState(state => ({
+        myPowers: state.myPowers.map(p => p.roundPowerId === roundPowerId ? { ...p, purchased: true } : p),
+      }));
     });
 
-    socket.on('power_queued', () => {
-      store.setMyPowerQueued(true);
+    socket.on('power_queued', ({ roundPowerId }) => {
+      useGameStore.setState(state => ({
+        myPowers: state.myPowers.map(p => p.roundPowerId === roundPowerId ? { ...p, queued: true } : p),
+      }));
     });
 
     socket.on('power_activated', (data) => {
@@ -216,12 +221,27 @@ export function useSocket() {
       useGameStore.setState({ noCategories: true });
     });
 
+    socket.on('skip_vote_updated', ({ roundId, votes }) => {
+      const cur = useGameStore.getState().round;
+      if (cur?.id === roundId) {
+        useGameStore.setState({ skipVotes: votes });
+      }
+    });
+
+    socket.on('category_skipped', ({ roundId, newCategory }) => {
+      const cur = useGameStore.getState().round;
+      if (cur?.id === roundId) {
+        useGameStore.getState().setCategory(newCategory);
+        useGameStore.setState({ skipVotes: [] });
+      }
+    });
+
     socket.on('game_reset', ({ game, players, categories }) => {
       const myPlayer = useGameStore.getState().myPlayer;
       const updatedMe = players.find(p => p.id === myPlayer?.id) ?? myPlayer;
       useGameStore.setState({
         game, players, myPlayer: updatedMe,
-        round: null, category: null, myPower: null,
+        round: null, category: null, myPowers: [],
         revealData: null, gameOver: null, noCategories: false,
         activePowers: [], submittedGuesses: [],
         categories: categories || [],
@@ -260,6 +280,8 @@ export function useSocket() {
       socket.off('all_teams_round_done');
       socket.off('scores_updated');
       socket.off('game_over');
+      socket.off('skip_vote_updated');
+      socket.off('category_skipped');
       socket.off('no_categories');
       socket.off('game_reset');
       socket.off('error');

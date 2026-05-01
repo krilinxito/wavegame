@@ -2,7 +2,7 @@ import { useState } from 'react';
 import useGameStore from '../store/gameStore';
 
 export function useRound() {
-  const { round, myPlayer, myPower, activePowers, revealData } = useGameStore();
+  const { round, myPlayer, activePowers, revealData } = useGameStore();
   const [myGuessPct, setMyGuessPct] = useState(0.5);
   const [submitted, setSubmitted] = useState(false);
 
