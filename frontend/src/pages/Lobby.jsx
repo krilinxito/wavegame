@@ -259,9 +259,8 @@ export default function Lobby() {
                   >📂</button>
                   <button
                     onClick={() => { playSfx('sfx_click_alt'); setShowPresets(true); }}
-                    title="Categorías predeterminadas"
-                    style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13 }}
-                  >⚡</button>
+                    style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12, fontFamily: 'Nunito, sans-serif', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                  >⚡ Presets</button>
                 </div>
                 <input ref={fileRef} type="file" accept=".txt,.csv" style={{ display: 'none' }} onChange={importFile} />
                 {importMsg && <div style={{ fontSize: 12, color: 'var(--c-green)', fontWeight: 600 }}>{importMsg}</div>}
