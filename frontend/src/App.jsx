@@ -39,12 +39,12 @@ function AppInner() {
   useEffect(() => {
     if (page === 'splash') { stopMusic(); return; }
     if (page === 'home')  { playMusic('music_home'); return; }
-    if (page === 'lobby') { playMusic('music_lobby'); return; }
+    if (page === 'lobby') { playMusic('music_lobby', { randomStart: true }); return; }
     if (page === 'game') {
       if (gameOver)                        { playMusic('music_victory', { loop: false }); return; }
       if (!round)                          { stopMusic(); return; }
-      if (round.status === 'clue_giving')                                                                        { playMusic('music_clue'); return; }
-      if (['guessing','revealing','scoring','revealed','done'].includes(round.status)) { playMusic('music_guess'); return; }
+      if (round.status === 'clue_giving')                                                                        { playMusic('music_clue', { randomStart: true }); return; }
+      if (['guessing','revealing','scoring','revealed','done'].includes(round.status)) { playMusic('music_guess', { randomStart: true }); return; }
       stopMusic();
     }
   }, [page, round?.status, !!gameOver]);
@@ -65,6 +65,17 @@ function AppInner() {
     };
     window.addEventListener('wave:error', handler);
     return () => window.removeEventListener('wave:error', handler);
+  }, []);
+
+  // Handle kick
+  useEffect(() => {
+    const handler = () => {
+      setPage('home');
+      setError('Fuiste kickeado de la sala');
+      setTimeout(() => setError(''), 4000);
+    };
+    window.addEventListener('wave:kicked', handler);
+    return () => window.removeEventListener('wave:kicked', handler);
   }, []);
 
   const handleJoin = (roomCode, gameId, displayName, photoPath) => {

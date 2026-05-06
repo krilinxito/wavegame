@@ -262,6 +262,25 @@ module.exports = function lobbyHandlers(io, socket) {
     }
   });
 
+  socket.on('host_kick_player', async ({ targetPlayerId }) => {
+    try {
+      const player = await cache.getPlayer(socket.data.gameId, socket.data.playerId);
+      if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede kickear' });
+      if (targetPlayerId === socket.data.playerId) return;
+
+      const target = await cache.getPlayer(socket.data.gameId, targetPlayerId);
+      if (!target || target.is_host) return;
+
+      const targetSocket = io.sockets.sockets.get(target.socket_id);
+      if (targetSocket) {
+        targetSocket.emit('you_were_kicked');
+        targetSocket.disconnect(true);
+      }
+    } catch (err) {
+      console.error('host_kick_player error:', err);
+    }
+  });
+
   socket.on('disconnect', async () => {
     if (!socket.data.playerId) return;
     try {

@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
 import PlayerAvatar, { getPlayerColor } from './PlayerAvatar';
 import useGameStore from '../../store/gameStore';
+import socket from '../../socket';
 
 const TEAM_COLORS = ['#6c63ff', '#f97316', '#10b981', '#ef4444', '#fbbf24'];
 const teamColor = (n) => TEAM_COLORS[(n - 1) % TEAM_COLORS.length];
 
-function TeamsLeaderboard({ players, round, compact }) {
+function TeamsLeaderboard({ players, round, compact, isHost, myPlayer, kickPlayer }) {
   // Build team groups
   const teamMap = {};
   for (const p of players) {
@@ -66,6 +67,9 @@ function TeamsLeaderboard({ players, round, compact }) {
                   <span style={{ fontSize: 14, fontFamily: 'Fredoka One', color }}>
                     {player.score}
                   </span>
+                  {isHost && player.id !== myPlayer?.id && !player.is_host && (
+                    <button onClick={() => kickPlayer(player.id)} title="Kickear" style={{ background: 'none', border: 'none', fontSize: 11, cursor: 'pointer', color: 'var(--c-red)', opacity: 0.6, padding: '0 2px', lineHeight: 1 }}>✕</button>
+                  )}
                 </div>
               );
             })}
@@ -87,10 +91,12 @@ function TeamsLeaderboard({ players, round, compact }) {
 }
 
 export default function Leaderboard({ compact = false }) {
-  const { players, round, game } = useGameStore();
+  const { players, round, game, myPlayer } = useGameStore();
+  const isHost = !!myPlayer?.is_host;
+  const kickPlayer = (targetPlayerId) => socket.emit('host_kick_player', { targetPlayerId });
 
   if (game?.mode === 'teams') {
-    return <TeamsLeaderboard players={players} round={round} compact={compact} />;
+    return <TeamsLeaderboard players={players} round={round} compact={compact} isHost={isHost} myPlayer={myPlayer} kickPlayer={kickPlayer} />;
   }
 
   const sorted    = [...players].filter(p => p.connected && !p.is_spectator).sort((a, b) => b.score - a.score);
@@ -132,6 +138,9 @@ export default function Leaderboard({ compact = false }) {
             <span style={{ fontFamily: 'Fredoka One', fontSize: 22, color, minWidth: 32, textAlign: 'right' }}>
               {player.score}
             </span>
+            {isHost && player.id !== myPlayer?.id && !player.is_host && (
+              <button onClick={() => kickPlayer(player.id)} title="Kickear" style={{ background: 'none', border: 'none', fontSize: 12, cursor: 'pointer', color: 'var(--c-red)', opacity: 0.6, padding: '0 2px', lineHeight: 1 }}>✕</button>
+            )}
           </motion.div>
         );
       })}

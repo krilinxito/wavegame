@@ -249,6 +249,12 @@ export function useSocket() {
       });
     });
 
+    socket.on('you_were_kicked', () => {
+      useGameStore.getState().reset?.();
+      socket.disconnect();
+      window.dispatchEvent(new CustomEvent('wave:kicked'));
+    });
+
     socket.on('error', ({ code, message }) => {
       console.warn('[Socket Error]', code, message);
       // Toast notifications handled in components
@@ -284,6 +290,7 @@ export function useSocket() {
       socket.off('category_skipped');
       socket.off('no_categories');
       socket.off('game_reset');
+      socket.off('you_were_kicked');
       socket.off('error');
     };
   }, []);

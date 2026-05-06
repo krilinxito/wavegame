@@ -7,6 +7,7 @@ import Button from '../components/shared/Button';
 import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { useLang } from '../hooks/useLang';
+import { DEFAULT_CATEGORIES } from '../data/defaultCategories';
 
 const SHORTCODES = {
   fire:'🔥',skull:'💀',heart:'❤️',ice:'🧊',snowflake:'❄️',rocket:'🚀',star:'⭐',
@@ -28,6 +29,10 @@ export default function Lobby() {
   const [importMsg, setImportMsg] = useState('');
   const fileRef = useRef();
   const [showConfig, setShowConfig] = useState(false);
+  const [showPresets, setShowPresets] = useState(false);
+  const [presetSearch, setPresetSearch] = useState('');
+  const [presetLang, setPresetLang] = useState('all');
+  const [selectedPresets, setSelectedPresets] = useState(new Set());
   const [config, setConfig]     = useState({
     mode: game?.mode || 'normal',
     range_min: game?.range_min || 1,
@@ -80,6 +85,23 @@ export default function Lobby() {
     playSfx('sfx_click_alt');
     socket.emit('host_update_config', { gameId: game.id, ...config });
     setShowConfig(false);
+  };
+
+  const kickPlayer = (targetPlayerId) => {
+    playSfx('sfx_click_alt');
+    socket.emit('host_kick_player', { targetPlayerId });
+  };
+
+  const addPresetsSelected = () => {
+    for (const cat of DEFAULT_CATEGORIES) {
+      const key = `${cat.term}|${cat.left_extreme}|${cat.right_extreme}`;
+      if (selectedPresets.has(key)) {
+        socket.emit('add_category', { gameId: game.id, term: cat.term, left_extreme: cat.left_extreme, right_extreme: cat.right_extreme, playerId: myPlayer.id });
+      }
+    }
+    setSelectedPresets(new Set());
+    setShowPresets(false);
+    playSfx('sfx_click');
   };
 
   const startGame = () => {
@@ -200,6 +222,13 @@ export default function Lobby() {
                         {myPlayer.is_spectator ? L.playBtn : L.spectateBtn}
                       </button>
                     )}
+                    {isHost && p.id !== myPlayer.id && !p.is_host && (
+                      <button
+                        onClick={() => kickPlayer(p.id)}
+                        title="Kickear jugador"
+                        style={{ fontSize: 14, lineHeight: 1, padding: '2px 5px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-red)', opacity: 0.7 }}
+                      >✕</button>
+                    )}
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: p.connected ? 'var(--c-green)' : 'var(--c-red)', flexShrink: 0 }} />
                   </motion.div>
                 ))}
@@ -226,6 +255,11 @@ export default function Lobby() {
                     title="Importar desde .txt"
                     style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13 }}
                   >📂</button>
+                  <button
+                    onClick={() => { playSfx('sfx_click_alt'); setShowPresets(true); }}
+                    title="Categorías predeterminadas"
+                    style={{ padding: '6px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 13 }}
+                  >⚡</button>
                 </div>
                 <input ref={fileRef} type="file" accept=".txt,.csv" style={{ display: 'none' }} onChange={importFile} />
                 {importMsg && <div style={{ fontSize: 12, color: 'var(--c-green)', fontWeight: 600 }}>{importMsg}</div>}
@@ -400,6 +434,84 @@ export default function Lobby() {
           </div>
         </div>
       </div>
+
+      {/* Presets modal */}
+      <AnimatePresence>
+        {showPresets && (() => {
+          const filtered = DEFAULT_CATEGORIES.filter(cat => {
+            const matchLang = presetLang === 'all' || cat.lang === presetLang;
+            const q = presetSearch.toLowerCase();
+            const matchSearch = !q || cat.term.toLowerCase().includes(q) || cat.left_extreme.toLowerCase().includes(q) || cat.right_extreme.toLowerCase().includes(q);
+            return matchLang && matchSearch;
+          });
+          return (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowPresets(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              >
+                {/* Header */}
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ flex: 1, fontWeight: 700, fontSize: 15 }}>Categorías predeterminadas</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {['all','es','en'].map(l => (
+                      <button key={l} onClick={() => setPresetLang(l)}
+                        style={{ padding: '3px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--c-border)', cursor: 'pointer', fontFamily: 'Nunito, sans-serif', fontSize: 12, fontWeight: 700, background: presetLang === l ? 'var(--c-accent)' : 'var(--c-surface2)', color: presetLang === l ? '#fff' : 'var(--c-muted)' }}>
+                        {l === 'all' ? 'Todos' : l.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowPresets(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--c-muted)', lineHeight: 1 }}>✕</button>
+                </div>
+
+                {/* Search */}
+                <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                  <input value={presetSearch} onChange={e => setPresetSearch(e.target.value)} placeholder="Buscar..." style={{ width: '100%', padding: '7px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', color: 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+
+                {/* List */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {filtered.map(cat => {
+                    const key = `${cat.term}|${cat.left_extreme}|${cat.right_extreme}`;
+                    const checked = selectedPresets.has(key);
+                    return (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 'var(--r-sm)', background: checked ? 'rgba(184,56,32,0.10)' : 'var(--c-surface2)', border: `1px solid ${checked ? 'rgba(184,56,32,0.35)' : 'transparent'}`, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={checked} onChange={() => {
+                          setSelectedPresets(prev => {
+                            const next = new Set(prev);
+                            next.has(key) ? next.delete(key) : next.add(key);
+                            return next;
+                          });
+                        }} style={{ accentColor: 'var(--c-accent)', width: 15, height: 15, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{cat.term}</span>
+                          <span style={{ fontSize: 11, color: 'var(--c-muted)', marginLeft: 6 }}>{cat.left_extreme} / {cat.right_extreme}</span>
+                        </div>
+                        <span style={{ fontSize: 10, color: 'var(--c-muted)', background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 4, padding: '1px 5px' }}>{cat.lang.toUpperCase()}</span>
+                      </label>
+                    );
+                  })}
+                  {filtered.length === 0 && <div style={{ color: 'var(--c-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin resultados</div>}
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, color: 'var(--c-muted)' }}>{selectedPresets.size} seleccionadas</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setSelectedPresets(new Set())} style={{ padding: '6px 12px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontFamily: 'Nunito, sans-serif', fontSize: 12 }}>Limpiar</button>
+                    <Button onClick={addPresetsSelected} size="sm" disabled={selectedPresets.size === 0}>Agregar {selectedPresets.size > 0 ? `(${selectedPresets.size})` : ''}</Button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

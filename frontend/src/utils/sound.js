@@ -39,13 +39,19 @@ export function playSfx(name) {
   a.play().catch(() => {});
 }
 
-export function playMusic(name, { loop = true } = {}) {
+export function playMusic(name, { loop = true, randomStart = false } = {}) {
   if (currentMusicName === name) return;
   const audio = getMusicAudio();
   audio.pause();
   audio.src = `/sounds/${name}.mp3`;
   audio.loop = loop;
   currentMusicName = name;
+  if (randomStart) {
+    audio.addEventListener('loadedmetadata', () => {
+      const safe = Math.max(0, audio.duration - 20);
+      audio.currentTime = Math.random() * safe;
+    }, { once: true });
+  }
   audio.play().catch(() => playWhenAllowed(audio, name));
 }
 
