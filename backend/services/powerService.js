@@ -29,6 +29,7 @@ async function offerPowers(roundId, playerIds, mode, guaranteedIds = new Set(), 
       purchased: false,
       queued: false,
       activated: false,
+      is_free: isFree,
       target_player: null,
       activated_at: null,
     };
@@ -213,6 +214,7 @@ async function carryOverPowers(previousRoundId, newRoundId) {
       purchased: true,
       queued: false,
       activated: false,
+      is_free: rp.is_free ?? false,
       target_player: null,
       activated_at: null,
     };
@@ -221,7 +223,7 @@ async function carryOverPowers(previousRoundId, newRoundId) {
     offers[rp.player_id].push({
       roundPowerId: newRp.id,
       power: { id: rp.power_id, name: rp.name, cost: rp.cost, description: rp.description },
-      isFree: true,
+      isFree: rp.is_free ?? false,
       purchased: true,
     });
   }

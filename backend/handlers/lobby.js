@@ -340,9 +340,14 @@ async function startNextRound(io, roomCode, gameId, mode) {
     carryOverCounts[playerId] = offers.length;
   }
 
-  // All non-psychic players can receive new offers if they have < 3 powers
-  const psychicNeedsGuarantee = guaranteedIds.has(psychic.id) && (carryOverCounts[psychic.id] ?? 0) < 3;
-  const allOfferedIds = psychicNeedsGuarantee ? [...nonPsychicIds, psychic.id] : nonPsychicIds;
+  // If the bullseye winner is now the psychic, defer their free power to next guesser turn
+  if (guaranteedIds.has(psychic.id)) {
+    const deferKey = `bullseye_winners:${gameId}:${round.round_number}`;
+    await cache.client.sadd(deferKey, psychic.id);
+    await cache.client.expire(deferKey, 7200);
+    guaranteedIds.delete(psychic.id);
+  }
+  const allOfferedIds = nonPsychicIds;
 
   // powerOffers: { playerId: [{ roundPowerId, power, isFree, purchased }] }
   const powerOffers = await offerPowers(round.id, allOfferedIds, mode, guaranteedIds, carryOverCounts);
