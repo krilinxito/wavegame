@@ -15,7 +15,7 @@ function getMusicAudio() {
 // If autoplay is blocked, retry on first user interaction
 function playWhenAllowed(audio, name) {
   const retry = () => {
-    if (currentMusicName === name) audio.play().catch(() => {});
+    if (currentMusicName === name) audio.play().then(() => fadeIn(audio, pendingMusicVolume)).catch(() => {});
     window.removeEventListener('click', retry);
     window.removeEventListener('keydown', retry);
   };
@@ -39,6 +39,19 @@ export function playSfx(name) {
   a.play().catch(() => {});
 }
 
+function fadeIn(audio, targetVol, durationMs = 1800) {
+  audio.volume = 0;
+  const steps = 30;
+  const stepTime = durationMs / steps;
+  const stepVol = targetVol / steps;
+  let step = 0;
+  const interval = setInterval(() => {
+    step++;
+    audio.volume = Math.min(targetVol, stepVol * step);
+    if (step >= steps) clearInterval(interval);
+  }, stepTime);
+}
+
 export function playMusic(name, { loop = true, randomStart = false } = {}) {
   if (currentMusicName === name) return;
   const audio = getMusicAudio();
@@ -52,7 +65,9 @@ export function playMusic(name, { loop = true, randomStart = false } = {}) {
       audio.currentTime = Math.random() * safe;
     }, { once: true });
   }
-  audio.play().catch(() => playWhenAllowed(audio, name));
+  audio.play()
+    .then(() => fadeIn(audio, pendingMusicVolume))
+    .catch(() => playWhenAllowed(audio, name));
 }
 
 export function stopMusic() {
