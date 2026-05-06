@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { BACKEND } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/shared/Button';
 import { useSettings } from '../context/SettingsContext';
+import { useLocalPlayer } from '../hooks/useLocalPlayer';
 
 const STRINGS = {
   es: {
@@ -32,16 +33,26 @@ const STRINGS = {
 export default function Home({ onJoin }) {
   const { lang } = useSettings();
   const s = STRINGS[lang] ?? STRINGS.es;
+  const { displayName: savedName, photoPath: savedPhoto, playerId: savedPlayerId } = useLocalPlayer();
 
-  const [name, setName]         = useState('');
+  const [name, setName]         = useState(savedName || '');
   const [roomCode, setRoomCode] = useState('');
   const [tab, setTab]           = useState('create');
   const [photo, setPhoto]       = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(savedPhoto ? `${BACKEND}${savedPhoto}` : null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [showHowTo, setShowHowTo] = useState(false);
   const fileRef = useRef();
+
+  // Pre-fill room code from URL (e.g. wavebyplebe.com/ABC1234)
+  useEffect(() => {
+    const code = window.location.pathname.slice(1).toUpperCase();
+    if (/^[A-Z0-9]{4,8}$/.test(code)) {
+      setRoomCode(code);
+      setTab('join');
+    }
+  }, []);
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
@@ -51,11 +62,11 @@ export default function Home({ onJoin }) {
   };
 
   const uploadPhoto = async () => {
-    if (!photo) return null;
+    if (!photo) return savedPhoto || null; // reuse saved path if no new photo selected
     const fd = new FormData();
     fd.append('photo', photo);
     const res = await fetch(`${BACKEND}/api/upload/photo`, { method: 'POST', body: fd });
-    if (!res.ok) return null;
+    if (!res.ok) return savedPhoto || null;
     return (await res.json()).path;
   };
 
@@ -66,7 +77,7 @@ export default function Home({ onJoin }) {
       const res = await fetch(`${BACKEND}/api/games`, { method: 'POST' });
       const game = await res.json();
       const photoPath = await uploadPhoto();
-      onJoin(game.room_code, game.id, name.trim(), photoPath);
+      onJoin(game.room_code, game.id, name.trim(), photoPath, savedPlayerId);
     } catch { setError(s.createError); }
     finally { setLoading(false); }
   };
@@ -80,7 +91,7 @@ export default function Home({ onJoin }) {
       if (!res.ok) return setError(s.notFound);
       const game = await res.json();
       const photoPath = await uploadPhoto();
-      onJoin(game.room_code, game.id, name.trim(), photoPath);
+      onJoin(game.room_code, game.id, name.trim(), photoPath, savedPlayerId);
     } catch { setError(s.joinError); }
     finally { setLoading(false); }
   };

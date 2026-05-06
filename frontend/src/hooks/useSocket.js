@@ -6,11 +6,12 @@ export function useSocket() {
   const store = useGameStore();
 
   useEffect(() => {
-    socket.on('room_joined', ({ game, players, myPlayer, categories }) => {
+    socket.on('room_joined', ({ game, players, myPlayer, categories, challenges }) => {
       store.setGame(game);
       store.setPlayers(players);
       store.setMyPlayer(myPlayer);
       store.setCategories(categories || []);
+      store.setChallenges(challenges || []);
     });
 
     socket.on('player_joined', ({ player }) => store.addPlayer(player));
@@ -32,9 +33,11 @@ export function useSocket() {
 
     socket.on('category_added', ({ category }) => store.addCategory(category));
     socket.on('category_removed', ({ categoryId }) => store.removeCategory(categoryId));
+    socket.on('challenge_added', ({ challenge }) => store.addChallenge(challenge));
+    socket.on('challenge_removed', ({ challengeId }) => store.removeChallenge(challengeId));
 
-    socket.on('round_started', ({ round, category, psychicName }) => {
-      store.setRound({ ...round, psychicName });
+    socket.on('round_started', ({ round, category, psychicName, challenge }) => {
+      store.setRound({ ...round, psychicName, challenge: challenge ?? null });
       store.setCategory(category);
       store.setRevealData(null);
       store.setGameOver(null);
@@ -213,8 +216,8 @@ export function useSocket() {
       }
     });
 
-    socket.on('game_over', ({ winner, winnerTeam, teamScore, finalScores }) => {
-      store.setGameOver({ winner, winnerTeam: winnerTeam ?? null, teamScore: teamScore ?? null, finalScores });
+    socket.on('game_over', ({ winner, winnerTeam, teamScore, finalScores, stats }) => {
+      store.setGameOver({ winner, winnerTeam: winnerTeam ?? null, teamScore: teamScore ?? null, finalScores }, stats ?? null);
     });
 
     socket.on('no_categories', () => {
@@ -245,6 +248,7 @@ export function useSocket() {
         revealData: null, gameOver: null, noCategories: false,
         activePowers: [], submittedGuesses: [],
         categories: categories || [],
+        challenges: useGameStore.getState().challenges, // preserve challenges on reset
         teamRounds: {}, allTeamRoundsDone: false,
       });
     });
@@ -271,6 +275,8 @@ export function useSocket() {
       socket.off('game_started');
       socket.off('category_added');
       socket.off('category_removed');
+      socket.off('challenge_added');
+      socket.off('challenge_removed');
       socket.off('round_started');
       socket.off('team_rounds_started');
       socket.off('psychic_target');

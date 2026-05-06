@@ -9,6 +9,9 @@ import useGameStore from '../store/gameStore';
 import { useLang } from '../hooks/useLang';
 import { useSettings } from '../context/SettingsContext';
 import { DEFAULT_CATEGORIES } from '../data/defaultCategories';
+import { DEFAULT_CHALLENGES } from '../data/defaultChallenges';
+import { QRCodeSVG } from 'qrcode.react';
+import TutorialOverlay from '../components/shared/TutorialOverlay';
 
 const SHORTCODES = {
   fire:'🔥',skull:'💀',heart:'❤️',ice:'🧊',snowflake:'❄️',rocket:'🚀',star:'⭐',
@@ -26,12 +29,18 @@ const emojify = str => str.replace(/:([a-z0-9_]+):/gi, (m, code) => SHORTCODES[c
 export default function Lobby() {
   const L = useLang();
   const { lang } = useSettings();
-  const { game, players, myPlayer, categories } = useGameStore();
+  const { game, players, myPlayer, categories, challenges } = useGameStore();
   const [newCat, setNewCat]     = useState({ term: '', left: '', right: '' });
   const [importMsg, setImportMsg] = useState('');
   const fileRef = useRef();
   const [showConfig, setShowConfig] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
+  const [showChallengePresets, setShowChallengePresets] = useState(false);
+  const [challengeSearch, setChallengeSearch] = useState('');
+  const [selectedChallengePresets, setSelectedChallengePresets] = useState(new Set());
+  const [newChallenge, setNewChallenge] = useState({ name: '', description: '' });
+  const [showShare, setShowShare] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('wave_tutorial_seen'));
   const [presetSearch, setPresetSearch] = useState('');
   const [selectedPresets, setSelectedPresets] = useState(new Set());
   const [config, setConfig]     = useState({
@@ -106,6 +115,33 @@ export default function Lobby() {
     playSfx('sfx_click');
   };
 
+  const addCustomChallenge = () => {
+    if (!newChallenge.name.trim()) return;
+    socket.emit('add_challenge', {
+      name: newChallenge.name.trim(),
+      nameEn: newChallenge.name.trim(),
+      description: newChallenge.description.trim(),
+      descriptionEn: newChallenge.description.trim(),
+    });
+    setNewChallenge({ name: '', description: '' });
+    playSfx('sfx_click');
+  };
+
+  const addChallengePresetsSelected = () => {
+    for (const c of DEFAULT_CHALLENGES) {
+      if (selectedChallengePresets.has(c.id)) {
+        socket.emit('add_challenge', { id: c.id, name: c.name, nameEn: c.nameEn, description: c.description, descriptionEn: c.descriptionEn });
+      }
+    }
+    setSelectedChallengePresets(new Set());
+    setShowChallengePresets(false);
+    playSfx('sfx_click');
+  };
+
+  const removeChallenge = (challengeId) => {
+    socket.emit('remove_challenge', { challengeId });
+  };
+
   const startGame = () => {
     if (categories.length === 0) return alert(L.needCategories);
     socket.emit('host_start_game', { gameId: game.id, playerId: myPlayer.id });
@@ -123,7 +159,14 @@ export default function Lobby() {
               {L.waitingRoom} · {L.modes[game.mode]?.label}
             </span>
           </div>
-          <RoomCode code={game.room_code} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RoomCode code={game.room_code} />
+            <button
+              onClick={() => { playSfx('sfx_click_alt'); setShowShare(true); }}
+              title={lang === 'en' ? 'Share room' : 'Compartir sala'}
+              style={{ padding: '5px 10px', background: 'var(--c-surface)', border: '1px solid var(--c-border2)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12, fontFamily: 'Nunito, sans-serif', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+            >📲 {lang === 'en' ? 'Share' : 'Compartir'}</button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 16 }}>
@@ -331,6 +374,58 @@ export default function Lobby() {
                 </div>
               )}
             </div>
+            {/* Challenges */}
+            {isHost && (
+              <div style={card}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ ...sectionTitle, marginBottom: 0 }}>
+                    🎲 {lang === 'en' ? 'Round challenges' : 'Retos por ronda'}
+                  </div>
+                  <button
+                    onClick={() => { playSfx('sfx_click_alt'); setShowChallengePresets(true); }}
+                    style={{ padding: '4px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12, fontFamily: 'Nunito, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >⚡ Presets</button>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--c-muted)', marginBottom: 12 }}>
+                  {lang === 'en'
+                    ? 'Each round a random challenge is drawn. Leave empty for no challenges.'
+                    : 'Cada ronda se sortea un reto al azar. Dejá vacío para no usar retos.'}
+                </div>
+
+                {/* Custom challenge form */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  <input value={newChallenge.name} onChange={e => setNewChallenge(p => ({ ...p, name: e.target.value }))}
+                    placeholder={lang === 'en' ? 'Challenge name' : 'Nombre del reto'} style={inputStyle} />
+                  <input value={newChallenge.description} onChange={e => setNewChallenge(p => ({ ...p, description: e.target.value }))}
+                    placeholder={lang === 'en' ? 'Short description' : 'Descripción corta'} style={inputStyle} />
+                  <Button onClick={addCustomChallenge} variant="secondary" size="sm">
+                    {lang === 'en' ? '+ Add challenge' : '+ Agregar reto'}
+                  </Button>
+                </div>
+
+                {/* Challenges list */}
+                <AnimatePresence>
+                  {challenges.map(c => (
+                    <motion.div key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 10px', borderRadius: 'var(--r-sm)', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', marginBottom: 5 }}
+                    >
+                      <div style={{ flex: 1, fontSize: 13 }}>
+                        <div style={{ fontWeight: 700 }}>{lang === 'en' ? (c.nameEn || c.name) : c.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--c-muted)' }}>{lang === 'en' ? (c.descriptionEn || c.description) : c.description}</div>
+                      </div>
+                      <button onClick={() => removeChallenge(c.id)} style={{ background: 'none', color: 'var(--c-muted)', fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0, marginTop: 1 }}>×</button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+
+                {challenges.length === 0 && (
+                  <div style={{ color: 'var(--c-muted)', fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: '6px 0' }}>
+                    {lang === 'en' ? 'No challenges — all rounds free style' : 'Sin retos — todas las rondas libres'}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
 
           {/* Right column */}
@@ -437,6 +532,105 @@ export default function Lobby() {
       </div>
 
       {/* Presets modal */}
+      {/* Tutorial overlay */}
+      <AnimatePresence>
+        {showTutorial && (
+          <TutorialOverlay onClose={() => {
+            localStorage.setItem('wave_tutorial_seen', '1');
+            setShowTutorial(false);
+          }} />
+        )}
+      </AnimatePresence>
+
+      {/* Share / QR modal */}
+      <AnimatePresence>
+        {showShare && (() => {
+          const shareUrl = `${window.location.origin}/${game.room_code}`;
+          return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowShare(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            >
+              <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', padding: '28px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minWidth: 280 }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{lang === 'en' ? 'Invite players' : 'Invitá jugadores'}</div>
+                <div style={{ background: '#fff', padding: 12, borderRadius: 12 }}>
+                  <QRCodeSVG value={shareUrl} size={180} />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--c-muted)', textAlign: 'center', wordBreak: 'break-all' }}>{shareUrl}</div>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(shareUrl); playSfx('sfx_click'); }}
+                  style={{ padding: '7px 20px', background: 'var(--c-accent)', border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: '#fff', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13 }}
+                >{lang === 'en' ? '📋 Copy link' : '📋 Copiar link'}</button>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* Challenge presets modal */}
+      <AnimatePresence>
+        {showChallengePresets && (() => {
+          const q = challengeSearch.toLowerCase();
+          const alreadyIds = new Set(challenges.map(c => c.id));
+          const filtered = DEFAULT_CHALLENGES.filter(c =>
+            !alreadyIds.has(c.id) &&
+            (!q || (lang === 'en' ? c.nameEn : c.name).toLowerCase().includes(q) || (lang === 'en' ? c.descriptionEn : c.description).toLowerCase().includes(q))
+          );
+          return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowChallengePresets(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            >
+              <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              >
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ flex: 1, fontWeight: 700, fontSize: 15 }}>🎲 {lang === 'en' ? 'Challenge presets' : 'Retos predeterminados'}</span>
+                  <button onClick={() => setShowChallengePresets(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--c-muted)', lineHeight: 1 }}>✕</button>
+                </div>
+                <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--c-border)' }}>
+                  <input value={challengeSearch} onChange={e => setChallengeSearch(e.target.value)} placeholder={lang === 'en' ? 'Search...' : 'Buscar...'} style={{ width: '100%', padding: '7px 10px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', color: 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {filtered.map(c => {
+                    const checked = selectedChallengePresets.has(c.id);
+                    const name = lang === 'en' ? c.nameEn : c.name;
+                    const desc = lang === 'en' ? c.descriptionEn : c.description;
+                    return (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 'var(--r-sm)', background: checked ? 'rgba(184,56,32,0.10)' : 'var(--c-surface2)', border: `1px solid ${checked ? 'rgba(184,56,32,0.35)' : 'transparent'}`, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={checked} onChange={() => {
+                          setSelectedChallengePresets(prev => {
+                            const next = new Set(prev);
+                            next.has(c.id) ? next.delete(c.id) : next.add(c.id);
+                            return next;
+                          });
+                        }} style={{ accentColor: 'var(--c-accent)', width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--c-muted)' }}>{desc}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                  {filtered.length === 0 && <div style={{ color: 'var(--c-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>{lang === 'en' ? 'No results' : 'Sin resultados'}</div>}
+                </div>
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, color: 'var(--c-muted)' }}>{selectedChallengePresets.size} {lang === 'en' ? 'selected' : 'seleccionados'}</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setSelectedChallengePresets(new Set())} style={{ padding: '6px 12px', background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--c-muted)', fontFamily: 'Nunito, sans-serif', fontSize: 12 }}>{lang === 'en' ? 'Clear' : 'Limpiar'}</button>
+                    <Button onClick={addChallengePresetsSelected} size="sm" disabled={selectedChallengePresets.size === 0}>{lang === 'en' ? 'Add' : 'Agregar'} {selectedChallengePresets.size > 0 ? `(${selectedChallengePresets.size})` : ''}</Button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showPresets && (() => {
           const q = presetSearch.toLowerCase();

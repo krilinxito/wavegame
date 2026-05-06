@@ -5,6 +5,24 @@ const { getActivePowers, applyQueuedPowers } = require('../services/powerService
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
 const { checkWinCondition, getGame } = require('../services/gameService');
 
+async function computeGameStats(gameId) {
+  const allRounds = await cache.getRoundsForGame(gameId);
+  const stats = {}; // { playerId: { bullseyes, bestDelta, roundsAsPsychic } }
+  const ensure = (id) => { if (!stats[id]) stats[id] = { bullseyes: 0, bestDelta: 0, roundsAsPsychic: 0 }; };
+
+  for (const r of allRounds) {
+    if (r.psychic_id) { ensure(r.psychic_id); stats[r.psychic_id].roundsAsPsychic++; }
+    const guesses = await cache.getGuesses(r.id);
+    for (const g of guesses) {
+      if (!g.player_id || g.score_delta == null) continue;
+      ensure(g.player_id);
+      if (g.score_delta >= 4) stats[g.player_id].bullseyes++;
+      if (g.score_delta > stats[g.player_id].bestDelta) stats[g.player_id].bestDelta = g.score_delta;
+    }
+  }
+  return stats;
+}
+
 module.exports = function roundHandlers(io, socket) {
 
   socket.on('submit_clue', async ({ roundId, clue }) => {
@@ -273,11 +291,13 @@ async function triggerReveal(io, socket, roundId) {
 
     const winResult = await checkWinCondition(round.game_id);
     if (winResult.won) {
+      const stats = await computeGameStats(round.game_id);
       io.to(socket.data.roomCode).emit('game_over', {
         winner: winResult.winner,
         winnerTeam: winResult.winnerTeam ?? null,
         teamScore: winResult.teamScore ?? null,
         finalScores: updatedPlayers.sort((a, b) => b.score - a.score),
+        stats,
       });
     }
   }, 500);

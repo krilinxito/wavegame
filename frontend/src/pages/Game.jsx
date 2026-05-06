@@ -14,6 +14,7 @@ import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
 import { useLang } from '../hooks/useLang';
+import { useSettings } from '../context/SettingsContext';
 
 const TEAM_COLORS = ['#6c63ff', '#f97316', '#10b981', '#ef4444', '#fbbf24'];
 const teamColor = (n) => TEAM_COLORS[(n - 1) % TEAM_COLORS.length];
@@ -87,7 +88,48 @@ function OtherTeamsStatus({ teamRounds, myTeamNum, players, allTeamRoundsDone })
   );
 }
 
-function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
+function GameStats({ stats, players }) {
+  const { lang } = useSettings();
+  if (!stats) return null;
+  const entries = Object.entries(stats);
+  if (!entries.length) return null;
+
+  const getName = (id) => players.find(p => p.id === id)?.display_name ?? '?';
+
+  const mostBullseyes = entries.reduce((best, [id, s]) => (!best || s.bullseyes > best.val ? { id, val: s.bullseyes } : best), null);
+  const bestDelta     = entries.reduce((best, [id, s]) => (!best || s.bestDelta > best.val ? { id, val: s.bestDelta } : best), null);
+  const mostPsychic   = entries.reduce((best, [id, s]) => (!best || s.roundsAsPsychic > best.val ? { id, val: s.roundsAsPsychic } : best), null);
+
+  const rows = [
+    mostBullseyes?.val > 0 && { emoji: '🎯', label: lang === 'en' ? 'Most bullseyes' : 'Más bullseyes', name: getName(mostBullseyes.id), val: `×${mostBullseyes.val}` },
+    bestDelta?.val > 0     && { emoji: '⚡', label: lang === 'en' ? 'Best round'     : 'Mejor ronda',    name: getName(bestDelta.id),     val: `+${bestDelta.val}` },
+    mostPsychic?.val > 0   && { emoji: '🧠', label: lang === 'en' ? 'Most as psychic': 'Más veces psíquico', name: getName(mostPsychic.id), val: `×${mostPsychic.val}` },
+  ].filter(Boolean);
+
+  if (!rows.length) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+      style={{ width: '100%', maxWidth: 360, marginTop: 20, background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}
+    >
+      <div style={{ padding: '8px 16px', background: 'var(--c-surface2)', fontSize: 11, fontWeight: 700, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+        {lang === 'en' ? 'Game highlights' : 'Highlights de la partida'}
+      </div>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderTop: '1px solid var(--c-border)' }}>
+          <span style={{ fontSize: 16 }}>{row.emoji}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: 'var(--c-muted)' }}>{row.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)' }}>{row.name}</div>
+          </div>
+          <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--c-accent2)' }}>{row.val}</span>
+        </div>
+      ))}
+    </motion.div>
+  );
+}
+
+function GameOver({ gameOver, gameStats, myPlayer, players, isHost, returnToLobby }) {
   const L = useLang();
   const isTeams = gameOver.winnerTeam != null;
   const winnerTeamNum = gameOver.winnerTeam;
@@ -171,6 +213,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
           })}
         </motion.div>
 
+        <GameStats stats={gameStats} players={players} />
         {isHost
           ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>{L.returnLobby}</Button></motion.div>
           : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>{L.waitingHost}</motion.div>
@@ -202,6 +245,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
           );
         })}
       </motion.div>
+      <GameStats stats={gameStats} players={players} />
       {isHost
         ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}><Button onClick={returnToLobby} style={{ marginTop: 24 }}>{L.returnLobby}</Button></motion.div>
         : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ marginTop: 20, color: 'var(--c-muted)', fontSize: 13 }}>{L.waitingHost}</motion.div>
@@ -213,7 +257,7 @@ function GameOver({ gameOver, myPlayer, players, isHost, returnToLobby }) {
 
 export default function Game() {
   const L = useLang();
-  const { round, game, myPlayer, players, gameOver, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
+  const { round, game, myPlayer, players, gameOver, gameStats, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
   if (!game || !myPlayer) return null;
 
   const isHost = !!myPlayer.is_host;
@@ -224,7 +268,7 @@ export default function Game() {
   const requestReveal = () => socket.emit('request_reveal',  { roundId: round?.id });
   const returnToLobby = () => socket.emit('return_to_lobby', { gameId: game.id });
 
-  if (gameOver) return <GameOver gameOver={gameOver} myPlayer={myPlayer} players={players} isHost={isHost} returnToLobby={returnToLobby} />;
+  if (gameOver) return <GameOver gameOver={gameOver} gameStats={gameStats} myPlayer={myPlayer} players={players} isHost={isHost} returnToLobby={returnToLobby} />;
 
   if (noCategories) {
     return (

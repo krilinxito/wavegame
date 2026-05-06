@@ -7,9 +7,11 @@ import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
 import { slideUp } from '../../animations/variants';
 import { useLang } from '../../hooks/useLang';
+import { useSettings } from '../../context/SettingsContext';
 
 export default function ClueGiving() {
   const L = useLang();
+  const { lang } = useSettings();
   const { round, category, myPlayer, players, skipVotes } = useGameStore();
   const [clue, setClue] = useState('');
 
@@ -31,8 +33,21 @@ export default function ClueGiving() {
     }
   };
 
+  const challenge = round?.challenge;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+      {challenge && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 10, padding: '8px 16px', textAlign: 'center', maxWidth: 400, width: '100%' }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+            🎲 {lang === 'en' ? 'Challenge' : 'Reto'}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--c-text)' }}>{lang === 'en' ? (challenge.nameEn || challenge.name) : challenge.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>{lang === 'en' ? (challenge.descriptionEn || challenge.description) : challenge.description}</div>
+        </motion.div>
+      )}
       <motion.div {...slideUp} style={{ textAlign: 'center', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--c-muted)', fontWeight: 600 }}>

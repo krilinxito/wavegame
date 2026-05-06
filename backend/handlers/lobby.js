@@ -55,8 +55,9 @@ module.exports = function lobbyHandlers(io, socket) {
         : allPlayers;
 
       const categories = await cache.getCategories(game.id);
+      const challenges = await cache.getChallenges(game.id);
 
-      socket.emit('room_joined', { game, players, myPlayer: player, categories });
+      socket.emit('room_joined', { game, players, myPlayer: player, categories, challenges });
       socket.to(roomCode).emit('player_joined', { player: { ...player, socket_id: undefined } });
 
     } catch (err) {
@@ -107,6 +108,31 @@ module.exports = function lobbyHandlers(io, socket) {
       io.to(socket.data.roomCode).emit('category_added', { category });
     } catch (err) {
       socket.emit('error', { code: 'CATEGORY_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('add_challenge', async ({ id, name, nameEn, description, descriptionEn }) => {
+    try {
+      const gameId = socket.data.gameId;
+      const player = await cache.getPlayer(gameId, socket.data.playerId);
+      if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede agregar retos' });
+      const challenge = { id: id || uuidv4(), game_id: gameId, name, nameEn, description, descriptionEn, created_at: Date.now() };
+      await cache.setChallenge(gameId, challenge);
+      io.to(socket.data.roomCode).emit('challenge_added', { challenge });
+    } catch (err) {
+      socket.emit('error', { code: 'CHALLENGE_ERROR', message: err.message });
+    }
+  });
+
+  socket.on('remove_challenge', async ({ challengeId }) => {
+    try {
+      const gameId = socket.data.gameId;
+      const player = await cache.getPlayer(gameId, socket.data.playerId);
+      if (!player?.is_host) return socket.emit('error', { code: 'NOT_HOST', message: 'Solo el host puede eliminar retos' });
+      await cache.deleteChallenge(gameId, challengeId);
+      io.to(socket.data.roomCode).emit('challenge_removed', { challengeId });
+    } catch (err) {
+      socket.emit('error', { code: 'CHALLENGE_ERROR', message: err.message });
     }
   });
 
@@ -330,15 +356,21 @@ async function startNextRound(io, roomCode, gameId, mode) {
     const sorted = players.filter(p => !p.is_spectator).sort((a, b) => b.score - a.score);
     game.status = 'finished';
     await cache.setGame(game);
+    const stats = await buildGameStats(gameId);
     io.to(roomCode).emit('game_over', {
       winner: sorted[0] || null, winnerTeam: null, teamScore: null,
-      finalScores: sorted, reason: 'no_categories',
+      finalScores: sorted, reason: 'no_categories', stats,
     });
     return;
   }
 
   await markCategoryUsed(gameId, category.id);
-  const round = await createRound(gameId, psychic.id, game.current_round);
+
+  // Pick a random challenge if any are configured
+  const challenges = await cache.getChallenges(gameId);
+  const challenge = challenges.length ? challenges[Math.floor(Math.random() * challenges.length)] : null;
+
+  const round = await createRound(gameId, psychic.id, game.current_round, null, challenge);
 
   const players = await cache.getPlayers(gameId);
   const nonPsychicIds = players.filter(p => p.id !== psychic.id && p.connected && !p.is_spectator).map(p => p.id);
@@ -390,6 +422,7 @@ async function startNextRound(io, roomCode, gameId, mode) {
       created_by: category.created_by,
     },
     psychicName: psychic.display_name,
+    challenge: challenge ?? null,
   });
 
   if (psychic.socket_id) {
@@ -441,12 +474,13 @@ async function startTeamsRound(io, roomCode, gameId) {
       const winnerTeamScore = sortedTeams.length ? sortedTeams[0][1] : null;
       game.status = 'finished';
       await cache.setGame(game);
+      const stats = await buildGameStats(gameId);
       io.to(roomCode).emit('game_over', {
         winner: null,
         winnerTeam: winnerTeamNum,
         teamScore: winnerTeamScore,
         finalScores: [...active].sort((a, b) => b.score - a.score),
-        reason: 'no_categories',
+        reason: 'no_categories', stats,
       });
       return;
     }
@@ -499,6 +533,23 @@ async function startTeamsRound(io, roomCode, gameId) {
       }
     }
   }
+}
+
+async function buildGameStats(gameId) {
+  const allRounds = await cache.getRoundsForGame(gameId);
+  const stats = {};
+  const ensure = (id) => { if (!stats[id]) stats[id] = { bullseyes: 0, bestDelta: 0, roundsAsPsychic: 0 }; };
+  for (const r of allRounds) {
+    if (r.psychic_id) { ensure(r.psychic_id); stats[r.psychic_id].roundsAsPsychic++; }
+    const guesses = await cache.getGuesses(r.id);
+    for (const g of guesses) {
+      if (!g.player_id || g.score_delta == null) continue;
+      ensure(g.player_id);
+      if (g.score_delta >= 4) stats[g.player_id].bullseyes++;
+      if (g.score_delta > stats[g.player_id].bestDelta) stats[g.player_id].bestDelta = g.score_delta;
+    }
+  }
+  return stats;
 }
 
 module.exports.startNextRound = startNextRound;

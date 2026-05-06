@@ -2,7 +2,7 @@ const cache = require('../cache/redis');
 
 const uuidv4 = () => require('crypto').randomUUID();
 
-async function createRound(gameId, psychicId, roundNumber, teamNum = null) {
+async function createRound(gameId, psychicId, roundNumber, teamNum = null, challenge = null) {
   const round = {
     id: uuidv4(),
     game_id: gameId,
@@ -12,6 +12,7 @@ async function createRound(gameId, psychicId, roundNumber, teamNum = null) {
     clue: null,
     status: 'clue_giving',
     team_num: teamNum ?? null,
+    challenge: challenge ?? null,
     started_at: Date.now(),
     revealed_at: null,
   };

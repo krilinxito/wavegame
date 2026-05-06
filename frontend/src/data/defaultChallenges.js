@@ -1,0 +1,58 @@
+export const DEFAULT_CHALLENGES = [
+  {
+    id: 'una_palabra',
+    name: 'Solo una palabra',
+    nameEn: 'One word only',
+    description: 'La pista debe ser una sola palabra',
+    descriptionEn: 'The clue must be a single word',
+  },
+  {
+    id: 'numero',
+    name: 'Solo un número',
+    nameEn: 'Numbers only',
+    description: 'La pista debe ser un número',
+    descriptionEn: 'The clue must be a number',
+  },
+  {
+    id: 'al_reves',
+    name: 'Al revés',
+    nameEn: 'Reversed',
+    description: 'El extremo derecho es el frío, el izquierdo el caliente',
+    descriptionEn: 'Right extreme is cold, left extreme is hot',
+  },
+  {
+    id: 'doble_pista',
+    name: 'Doble pista',
+    nameEn: 'Double clue',
+    description: 'El psíquico da exactamente 2 palabras',
+    descriptionEn: 'Psychic gives exactly 2 words',
+  },
+  {
+    id: 'muda',
+    name: 'Ronda muda',
+    nameEn: 'Silent round',
+    description: 'Sin pista verbal — solo gestos o mímicas',
+    descriptionEn: 'No verbal clue — gestures only',
+  },
+  {
+    id: 'rima',
+    name: 'En rima',
+    nameEn: 'Rhyme it',
+    description: 'La pista debe rimar con algo del espectro',
+    descriptionEn: 'The clue must rhyme with something on the spectrum',
+  },
+  {
+    id: 'emoji',
+    name: 'Solo emojis',
+    nameEn: 'Emojis only',
+    description: 'La pista debe ser solo emojis (escríbelos)',
+    descriptionEn: 'The clue must be emojis only (type them)',
+  },
+  {
+    id: 'opuesto',
+    name: 'Pista opuesta',
+    nameEn: 'Opposite clue',
+    description: 'La pista debe referirse al extremo opuesto del objetivo',
+    descriptionEn: 'The clue must refer to the opposite of the target',
+  },
+];

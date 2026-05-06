@@ -11,6 +11,7 @@ import socket from './socket';
 import { useSocket } from './hooks/useSocket';
 import useGameStore from './store/gameStore';
 import { playMusic, stopMusic, playSfx } from './utils/sound';
+import { useLocalPlayer } from './hooks/useLocalPlayer';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ function AppInner() {
   const [showSettings, setShowSettings] = useState(false);
   const { game, round, gameOver } = useGameStore();
   const prevRoundStatusRef = React.useRef(null);
+  const { savePlayer } = useLocalPlayer();
 
   useSocket(); // mount all socket listeners
 
@@ -78,10 +80,13 @@ function AppInner() {
     return () => window.removeEventListener('wave:kicked', handler);
   }, []);
 
-  const handleJoin = (roomCode, gameId, displayName, photoPath) => {
+  const handleJoin = (roomCode, gameId, displayName, photoPath, savedPlayerId) => {
     socket.connect();
-    socket.emit('join_room', { roomCode, playerId: null, displayName, photoPath });
-    socket.once('room_joined', () => setPage('lobby'));
+    socket.emit('join_room', { roomCode, playerId: savedPlayerId ?? null, displayName, photoPath });
+    socket.once('room_joined', ({ myPlayer }) => {
+      savePlayer(myPlayer.id, myPlayer.display_name, myPlayer.photo_path);
+      setPage('lobby');
+    });
     socket.once('error', ({ message }) => setError(message));
   };
 

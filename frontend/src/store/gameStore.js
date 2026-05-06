@@ -9,9 +9,11 @@ const useGameStore = create((set, get) => ({
   category: null,
   myPowers: [],          // [{ roundPowerId, power, isFree, purchased, queued }] — hasta 3
   revealData: null,      // { targetPct, guesses, activePowers }
-  gameOver: null,        // { winner, finalScores }
+  gameOver: null,        // { winner, finalScores, stats }
+  gameStats: null,       // { [playerId]: { bullseyes, bestDelta, roundsAsPsychic } }
   noCategories: false,
   categories: [],        // lobby categories list
+  challenges: [],        // lobby challenges list
   activePowers: [],      // powers activated this round (for UI display)
   submittedGuesses: [],  // { playerId, playerName, photoPath, guessPct } — real-time guesses
   skipVotes: [],         // playerIds que votaron skipear la categoría actual
@@ -27,8 +29,16 @@ const useGameStore = create((set, get) => ({
   setCategory: (category) => set({ category }),
   setMyPowers: (myPowers) => set({ myPowers }),
   setRevealData: (revealData) => set({ revealData }),
-  setGameOver: (gameOver) => set({ gameOver }),
+  setGameOver: (gameOver, stats) => set({ gameOver, gameStats: stats ?? null }),
   setCategories: (categories) => set({ categories }),
+  setChallenges: (challenges) => set({ challenges }),
+
+  addChallenge: (challenge) => set(state => ({
+    challenges: [...state.challenges.filter(c => c.id !== challenge.id), challenge],
+  })),
+  removeChallenge: (challengeId) => set(state => ({
+    challenges: state.challenges.filter(c => c.id !== challengeId),
+  })),
   setSkipVotes: (skipVotes) => set({ skipVotes }),
 
   updatePlayer: (player) => set(state => ({
@@ -71,7 +81,7 @@ const useGameStore = create((set, get) => ({
   reset: () => set({
     game: null, players: [], myPlayer: null, round: null,
     category: null, myPowers: [],
-    revealData: null, gameOver: null, noCategories: false, categories: [], activePowers: [],
+    revealData: null, gameOver: null, gameStats: null, noCategories: false, categories: [], challenges: [], activePowers: [],
     skipVotes: [], teamRounds: {}, allTeamRoundsDone: false,
   }),
 }));

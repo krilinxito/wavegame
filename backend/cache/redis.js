@@ -154,6 +154,19 @@ async function cleanupRounds(gameId) {
   if (keysToDelete.length) await client.del(...keysToDelete);
 }
 
+// --- Challenges ---
+async function getChallenges(gameId) {
+  const hash = await client.hgetall(`challenges:${gameId}`);
+  if (!hash) return [];
+  return Object.values(hash).map(v => JSON.parse(v)).sort((a, b) => a.created_at - b.created_at);
+}
+async function setChallenge(gameId, challenge) {
+  await client.hset(`challenges:${gameId}`, challenge.id, JSON.stringify(challenge));
+}
+async function deleteChallenge(gameId, challengeId) {
+  await client.hdel(`challenges:${gameId}`, challengeId);
+}
+
 // --- Skip votes ---
 async function getSkipVotes(roundId) {
   return client.smembers(`skip_votes:${roundId}`);
@@ -181,5 +194,6 @@ module.exports = {
   getRoundPowerByPlayer, getRoundPowers, getRoundPowerById, setRoundPower,
   getGuess, getGuesses, setGuess,
   cleanupGame, cleanupRounds,
+  getChallenges, setChallenge, deleteChallenge,
   getSkipVotes, toggleSkipVote, clearSkipVotes,
 };
