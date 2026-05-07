@@ -186,9 +186,16 @@ module.exports = function lobbyHandlers(io, socket) {
 
       await startGame(gameId);
       const updatedGame = await getGame(gameId);
-      io.to(socket.data.roomCode).emit('game_started', { game: updatedGame });
 
-      await startNextRound(io, socket.data.roomCode, gameId, updatedGame.mode);
+      try {
+        await startNextRound(io, socket.data.roomCode, gameId, updatedGame.mode);
+      } catch (roundErr) {
+        updatedGame.status = 'lobby';
+        await cache.setGame(updatedGame);
+        throw roundErr;
+      }
+
+      io.to(socket.data.roomCode).emit('game_started', { game: updatedGame });
 
     } catch (err) {
       console.error('host_start_game error:', err);
@@ -347,7 +354,7 @@ async function startNextRound(io, roomCode, gameId, mode) {
   }
 
   const psychic = await rotatePsychic(gameId);
-  if (!psychic) return;
+  if (!psychic) throw new Error('No hay jugadores activos para iniciar la ronda');
 
   const game = await getGame(gameId);
   const category = await getUnusedCategory(gameId);
@@ -452,7 +459,7 @@ async function startTeamsRound(io, roomCode, gameId) {
     allPlayers.filter(p => p.team && !p.is_spectator).map(p => p.team)
   )].sort((a, b) => a - b);
 
-  if (!teamNums.length) return;
+  if (!teamNums.length) throw new Error('No hay equipos completos para iniciar la ronda');
 
   const newRoundNumber = game.current_round + 1;
   game.current_round = newRoundNumber;
