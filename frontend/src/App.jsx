@@ -22,7 +22,10 @@ export default function App() {
 }
 
 function AppInner() {
-  const [page, setPage] = useState('splash'); // 'splash' | 'home' | 'lobby' | 'game'
+  const [page, setPage] = useState(() => {
+    const code = window.location.pathname.slice(1).toUpperCase();
+    return /^[A-Z0-9]{4,8}$/.test(code) ? 'home' : 'splash';
+  }); // 'splash' | 'home' | 'lobby' | 'game'
   const [error, setError] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const { game, round, gameOver } = useGameStore();
@@ -118,6 +121,7 @@ function AppInner() {
             background: 'rgba(239,68,68,0.9)', color: '#fff', borderRadius: 12,
             padding: '10px 20px', zIndex: 999, fontSize: 14, fontWeight: 700,
             boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            maxWidth: '90vw', textAlign: 'center',
           }}>
             {error}
           </div>

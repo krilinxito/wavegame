@@ -1,214 +1,214 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '../../context/SettingsContext';
-import Button from './Button';
 
-// Phase timings in ms
-const PHASES = [
-  { duration: 2000 },  // 0: spectrum appears
-  { duration: 2000 },  // 1: clue appears
-  { duration: 2500 },  // 2: players guess
-  { duration: 2500 },  // 3: reveal
-];
-const TOTAL = PHASES.reduce((s, p) => s + p.duration, 0);
-
-const MOCK_PLAYERS = [
-  { color: '#6c63ff', label: 'A', targetPct: 0.70, score: '+4' },
-  { color: '#f97316', label: 'B', targetPct: 0.58, score: '+3' },
-  { color: '#10b981', label: 'C', targetPct: 0.42, score: '-2' },
-];
+const R = 80;
+const arc = `M ${-R} 0 A ${R} ${R} 0 0 1 ${R} 0`;
+const pctToX = (p) => R * Math.cos(Math.PI * (1 - p));
+const pctToY = (p) => -R * Math.sin(Math.PI * (1 - p));
 const TARGET_PCT = 0.72;
 
-const TEXT = {
+const PLAYERS = [
+  { color: '#6c63ff', pct: 0.70, score: '+4' },
+  { color: '#f97316', pct: 0.58, score: '+3' },
+  { color: '#10b981', pct: 0.42, score: '-2' },
+];
+
+const SLIDES = {
   es: [
-    ['🧠 El psíquico conoce el objetivo secreto', 'Los demás solo ven el espectro'],
-    ['💬 Da una pista para guiar a los demás', 'Una sola pista para todo el espectro'],
-    ['🎯 Los demás mueven el dial donde creen', 'Cuanto más cerca del objetivo, mejor'],
-    ['✨ ¡Se revelan los resultados!', 'Bullseye = +4 · Cerca = +3 · Casi = +2'],
+    { title: '🧠 El psíquico conoce el objetivo', desc: 'Solo él ve la posición secreta en el espectro. Los demás solo ven los extremos.' },
+    { title: '💬 Da una pista', desc: 'Una sola palabra o frase para guiar a todos hacia la posición secreta.' },
+    { title: '🎯 Los demás mueven el dial', desc: 'Cada jugador arrastra el dial al lugar donde cree que está el objetivo.' },
+    { title: '✨ ¡Se revelan los resultados!', desc: 'Bullseye 🎯 = +4 · Cerca 🔥 = +3 · Casi ✓ = +2 · El psíquico gana puntos si aciertan.' },
   ],
   en: [
-    ['🧠 The psychic knows the secret target', 'Others only see the spectrum'],
-    ['💬 Give a clue to guide everyone', 'One single clue for the whole spectrum'],
-    ['🎯 Others move the dial to their guess', 'Closer to the target = more points'],
-    ['✨ Results revealed!', 'Bullseye = +4 · Close = +3 · Near = +2'],
+    { title: '🧠 The psychic knows the target', desc: 'Only they see the secret position. Others only see the spectrum extremes.' },
+    { title: '💬 Give a clue', desc: 'One word or phrase to guide everyone toward the secret position.' },
+    { title: '🎯 Others move the dial', desc: 'Each player drags the dial to where they think the target is.' },
+    { title: '✨ Results revealed!', desc: 'Bullseye 🎯 = +4 · Close 🔥 = +3 · Near ✓ = +2 · The psychic earns points if others score.' },
   ],
 };
 
-function DialDemo({ phase }) {
-  // SVG arc from 0° (left) to 180° (right), center at (0,0), radius 80
-  const R = 80;
-  const arc = `M ${-R} 0 A ${R} ${R} 0 0 1 ${R} 0`;
-  const pctToX = (p) => R * Math.cos(Math.PI * (1 - p));
-  const pctToY = (p) => -R * Math.sin(Math.PI * (1 - p));
-
-  const targetX = pctToX(TARGET_PCT);
-  const targetY = pctToY(TARGET_PCT);
+function DialSlide({ slide }) {
+  const showClue    = slide >= 1;
+  const showPlayers = slide >= 2;
+  const showReveal  = slide >= 3;
 
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
-      <svg viewBox="-110 -95 220 110" style={{ width: '100%', overflow: 'visible' }}>
+    <div style={{ width: '100%', maxWidth: 320 }}>
+      {/* Clue badge — separate row, NEVER overlapping SVG */}
+      <div style={{ height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+        <AnimatePresence>
+          {showClue && (
+            <motion.div
+              key="clue"
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              style={{
+                background: 'var(--c-surface2)', border: '1px solid var(--c-border)',
+                borderRadius: 8, padding: '5px 16px',
+                fontSize: 15, fontWeight: 700, color: 'var(--c-accent2)',
+              }}
+            >
+              🌋 Volcán
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <svg viewBox="-100 -88 200 105" style={{ width: '100%', overflow: 'visible' }}>
         {/* Track */}
         <path d={arc} fill="none" stroke="var(--c-border2)" strokeWidth={14} strokeLinecap="round" />
 
-        {/* Scoring zones (visible from phase 3) */}
+        {/* Scoring zones */}
         <AnimatePresence>
-          {phase >= 3 && (
-            <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {[{ hw: 0.10, color: '#fbbf24', op: 0.3 }, { hw: 0.05, color: '#f97316', op: 0.5 }, { hw: 0.02, color: '#ef4444', op: 0.9 }].map((z, i) => {
-                const a1 = Math.PI * (1 - (TARGET_PCT - z.hw));
-                const a2 = Math.PI * (1 - (TARGET_PCT + z.hw));
-                const x1 = R * Math.cos(a1), y1 = -R * Math.sin(a1);
-                const x2 = R * Math.cos(a2), y2 = -R * Math.sin(a2);
-                return (
-                  <path key={i}
-                    d={`M ${x1} ${y1} A ${R} ${R} 0 0 0 ${x2} ${y2}`}
-                    fill="none" stroke={z.color} strokeWidth={14} strokeOpacity={z.op} strokeLinecap="round"
-                  />
-                );
-              })}
-            </motion.g>
-          )}
+          {showReveal && [
+            { hw: 0.10, color: '#fbbf24', op: 0.3 },
+            { hw: 0.05, color: '#f97316', op: 0.5 },
+            { hw: 0.02, color: '#ef4444', op: 0.9 },
+          ].map((z, i) => {
+            const a1 = Math.PI * (1 - (TARGET_PCT - z.hw));
+            const a2 = Math.PI * (1 - (TARGET_PCT + z.hw));
+            const x1 = R * Math.cos(a1), y1 = -R * Math.sin(a1);
+            const x2 = R * Math.cos(a2), y2 = -R * Math.sin(a2);
+            return (
+              <motion.path key={i}
+                d={`M ${x1} ${y1} A ${R} ${R} 0 0 0 ${x2} ${y2}`}
+                fill="none" stroke={z.color} strokeWidth={14} strokeOpacity={z.op} strokeLinecap="round"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              />
+            );
+          })}
         </AnimatePresence>
 
-        {/* Target marker (phase 3+) */}
+        {/* Target marker */}
         <AnimatePresence>
-          {phase >= 3 && (
-            <motion.circle cx={targetX} cy={targetY} r={7}
+          {showReveal && (
+            <motion.circle
+              cx={pctToX(TARGET_PCT)} cy={pctToY(TARGET_PCT)} r={7}
               fill="#ef4444" stroke="#fff" strokeWidth={2}
-              initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+              initial={{ scale: 0 }} animate={{ scale: 1 }}
             />
           )}
         </AnimatePresence>
 
-        {/* Player handles (phase 2+) */}
-        {MOCK_PLAYERS.map((p, i) => (
-          <AnimatePresence key={i}>
-            {phase >= 2 && (
-              <motion.g
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ delay: i * 0.25 }}
-              >
-                <motion.circle
-                  cx={pctToX(0.5)} cy={pctToY(0.5)}
-                  animate={{ cx: pctToX(p.targetPct), cy: pctToY(p.targetPct) }}
-                  transition={{ type: 'spring', stiffness: 60, damping: 14, delay: i * 0.25 }}
-                  r={9} fill={p.color} stroke="#fff" strokeWidth={2}
-                />
-                {phase >= 3 && (
-                  <motion.text
-                    x={pctToX(p.targetPct)} y={pctToY(p.targetPct) - 15}
-                    textAnchor="middle" fontSize={10} fontWeight={700}
-                    fill={parseFloat(p.score) > 0 ? '#10b981' : '#ef4444'}
-                    initial={{ opacity: 0, y: pctToY(p.targetPct) - 8 }}
-                    animate={{ opacity: 1, y: pctToY(p.targetPct) - 15 }}
-                    transition={{ delay: 0.4 + i * 0.15 }}
-                  >{p.score}</motion.text>
-                )}
-              </motion.g>
-            )}
-          </AnimatePresence>
-        ))}
+        {/* Player handles */}
+        <AnimatePresence>
+          {showPlayers && PLAYERS.map((p, i) => (
+            <motion.g key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.1 }}>
+              <circle cx={pctToX(p.pct)} cy={pctToY(p.pct)} r={9} fill={p.color} stroke="#fff" strokeWidth={2} />
+              {showReveal && (
+                <motion.text
+                  x={pctToX(p.pct)} y={pctToY(p.pct) - 14}
+                  textAnchor="middle" fontSize={10} fontWeight={700}
+                  fill={p.score.startsWith('+') ? '#10b981' : '#ef4444'}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}
+                >
+                  {p.score}
+                </motion.text>
+              )}
+            </motion.g>
+          ))}
+        </AnimatePresence>
 
         {/* Extremes */}
         <text x={-R - 4} y={12} textAnchor="end" fontSize={9} fill="var(--c-muted)">Frío</text>
         <text x={R + 4}  y={12} textAnchor="start" fontSize={9} fill="var(--c-muted)">Caliente</text>
 
-        {/* Category */}
-        <text x={0} y={-82} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--c-text)">Temperatura</text>
+        {/* Category title — well above the arc so it never overlaps */}
+        <text x={0} y={-76} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--c-text)">Temperatura</text>
       </svg>
-
-      {/* Clue badge (phase 1+) */}
-      <AnimatePresence>
-        {phase >= 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            style={{
-              position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-              background: 'var(--c-surface2)', border: '1px solid var(--c-border)',
-              borderRadius: 8, padding: '5px 14px', fontSize: 14, fontWeight: 700,
-              color: 'var(--c-accent2)', whiteSpace: 'nowrap',
-            }}
-          >
-            🌋 Volcán
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 export default function TutorialOverlay({ onClose }) {
   const { lang } = useSettings();
-  const texts = TEXT[lang] ?? TEXT.es;
-  const [phase, setPhase] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
+  const slides = SLIDES[lang] ?? SLIDES.es;
+  const [slide, setSlide] = useState(0);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(e => {
-        const next = (e + 100) % TOTAL;
-        let acc = 0;
-        for (let i = 0; i < PHASES.length; i++) {
-          acc += PHASES[i].duration;
-          if (next < acc) { setPhase(i); break; }
-        }
-        return next;
-      });
-    }, 100);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Progress bar fill
-  let phaseStart = 0;
-  for (let i = 0; i < phase; i++) phaseStart += PHASES[i].duration;
-  const phaseProgress = ((elapsed - phaseStart + TOTAL) % TOTAL) / PHASES[phase].duration;
+  const isLast = slide === slides.length - 1;
+  const prev = () => setSlide(s => Math.max(0, s - 1));
+  const next = () => { if (isLast) onClose(); else setSlide(s => s + 1); };
 
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border2)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 420, overflow: 'hidden', boxShadow: 'var(--shadow-window)' }}
+        initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border2)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 380, boxShadow: 'var(--shadow-window)', overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
       >
-        {/* Phase progress bar */}
-        <div style={{ height: 3, background: 'var(--c-surface2)' }}>
-          <motion.div
-            style={{ height: '100%', background: 'var(--c-accent2)', width: `${phaseProgress * 100}%` }}
-          />
+        {/* Slide counter bar */}
+        <div style={{ display: 'flex', gap: 3, padding: '12px 16px 0' }}>
+          {slides.map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= slide ? 'var(--c-accent2)' : 'var(--c-border2)', transition: 'background 0.2s' }} />
+          ))}
         </div>
 
-        <div style={{ padding: '24px 28px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          {/* Text */}
+        <div style={{ padding: '18px 22px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          {/* Slide text */}
           <AnimatePresence mode="wait">
-            <motion.div key={phase} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              style={{ textAlign: 'center', minHeight: 44 }}>
-              <div style={{ fontFamily: 'Fredoka One', fontSize: 17, color: 'var(--c-text)', marginBottom: 4 }}>
-                {texts[phase][0]}
+            <motion.div key={slide}
+              initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.18 }}
+              style={{ textAlign: 'center', minHeight: 52 }}
+            >
+              <div style={{ fontFamily: 'Fredoka One', fontSize: 17, color: 'var(--c-text)', marginBottom: 5 }}>
+                {slides[slide].title}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>{texts[phase][1]}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--c-muted)', lineHeight: 1.5 }}>
+                {slides[slide].desc}
+              </div>
             </motion.div>
           </AnimatePresence>
 
-          {/* Animated dial */}
-          <DialDemo phase={phase} />
+          {/* Dial demo */}
+          <DialSlide slide={slide} />
 
-          {/* Phase dots */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            {PHASES.map((_, i) => (
-              <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === phase ? 'var(--c-accent2)' : 'var(--c-border2)', transition: 'background 0.3s' }} />
-            ))}
+          {/* Navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+            <button
+              onClick={prev}
+              disabled={slide === 0}
+              style={{
+                padding: '8px 16px', background: 'var(--c-surface2)',
+                border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)',
+                cursor: slide === 0 ? 'default' : 'pointer',
+                color: 'var(--c-text)', opacity: slide === 0 ? 0.25 : 1,
+                fontFamily: 'Nunito, sans-serif', fontSize: 16, lineHeight: 1,
+              }}
+            >←</button>
+
+            <div style={{ flex: 1, display: 'flex', gap: 6, justifyContent: 'center' }}>
+              {slides.map((_, i) => (
+                <button key={i} onClick={() => setSlide(i)} style={{
+                  width: 7, height: 7, borderRadius: '50%', padding: 0, border: 'none', cursor: 'pointer',
+                  background: i === slide ? 'var(--c-accent2)' : 'var(--c-border2)',
+                  transition: 'background 0.2s',
+                }} />
+              ))}
+            </div>
+
+            <button
+              onClick={next}
+              style={{
+                padding: '8px 16px',
+                background: isLast ? 'var(--c-accent)' : 'var(--c-surface2)',
+                border: `1px solid ${isLast ? 'var(--c-accent)' : 'var(--c-border)'}`,
+                borderRadius: 'var(--r-sm)',
+                cursor: 'pointer',
+                color: isLast ? '#fff' : 'var(--c-text)',
+                fontFamily: 'Nunito, sans-serif', fontSize: isLast ? 13 : 16,
+                fontWeight: isLast ? 700 : 400, lineHeight: 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {isLast ? (lang === 'en' ? '✓ Got it' : '✓ Listo') : '→'}
+            </button>
           </div>
-
-          <Button onClick={onClose} style={{ width: '100%' }}>
-            {lang === 'en' ? '✓ Got it, let\'s play!' : '✓ ¡Entendido, a jugar!'}
-          </Button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12, fontFamily: 'Nunito, sans-serif' }}>
-            {lang === 'en' ? 'Skip' : 'Saltar'}
-          </button>
         </div>
       </motion.div>
     </motion.div>

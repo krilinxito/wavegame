@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { BACKEND } from '../config';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/shared/Button';
 import { useSettings } from '../context/SettingsContext';
@@ -31,6 +32,7 @@ const STRINGS = {
 };
 
 export default function Home({ onJoin }) {
+  const isMobile = useIsMobile();
   const { lang } = useSettings();
   const s = STRINGS[lang] ?? STRINGS.es;
   const { displayName: savedName, photoPath: savedPhoto, playerId: savedPlayerId } = useLocalPlayer();
@@ -43,6 +45,7 @@ export default function Home({ onJoin }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [showHowTo, setShowHowTo] = useState(false);
+  const [inviteMode, setInviteMode] = useState(false);
   const fileRef = useRef();
 
   // Pre-fill room code from URL (e.g. wavebyplebe.com/ABC1234)
@@ -51,6 +54,7 @@ export default function Home({ onJoin }) {
     if (/^[A-Z0-9]{4,8}$/.test(code)) {
       setRoomCode(code);
       setTab('join');
+      setInviteMode(true);
     }
   }, []);
 
@@ -107,9 +111,9 @@ export default function Home({ onJoin }) {
         initial={{ opacity: 0, y: -24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        style={{ marginBottom: 52, textAlign: 'center' }}
+        style={{ marginBottom: isMobile ? 28 : 52, textAlign: 'center' }}
       >
-        <div style={{ fontFamily: 'Fredoka One', fontSize: 92, color: 'var(--c-accent2)', letterSpacing: 2, lineHeight: 1 }}>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: isMobile ? 64 : 92, color: 'var(--c-accent2)', letterSpacing: 2, lineHeight: 1 }}>
           Wave
         </div>
         <div style={{ fontSize: 13, color: 'var(--c-muted)', letterSpacing: 3, marginTop: 4, textTransform: 'uppercase' }}>
@@ -126,7 +130,7 @@ export default function Home({ onJoin }) {
           background: 'var(--c-surface)',
           borderRadius: 'var(--r-lg)',
           border: '1px solid var(--c-border2)',
-          padding: '32px 44px',
+          padding: isMobile ? '20px 16px' : '32px 44px',
           width: '100%', maxWidth: 480,
           boxShadow: 'var(--shadow-window)',
         }}
@@ -328,6 +332,7 @@ const CONTENT = {
 };
 
 function HowToPlay({ open, onClose, lang, closeLabel }) {
+  const isMobile = useIsMobile();
   const c = CONTENT[lang] ?? CONTENT.es;
   return (
     <AnimatePresence>
@@ -355,7 +360,7 @@ function HowToPlay({ open, onClose, lang, closeLabel }) {
               borderRadius: 'var(--r-lg)',
               border: '1px solid var(--c-border2)',
               boxShadow: 'var(--shadow-window)',
-              width: '100%', maxWidth: 560,
+              width: '100%', maxWidth: isMobile ? '95vw' : 560,
               maxHeight: '88vh',
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',

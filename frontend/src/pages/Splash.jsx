@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
 import Button from '../components/shared/Button';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export default function Splash({ onPlay }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{
       minHeight: '100vh',
@@ -24,7 +26,7 @@ export default function Splash({ onPlay }) {
         transition={{ duration: 0.5, delay: 0.15 }}
         style={{ textAlign: 'center' }}
       >
-        <div style={{ fontFamily: 'Fredoka One', fontSize: 64, color: 'var(--c-accent2)', lineHeight: 1 }}>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: isMobile ? 48 : 64, color: 'var(--c-accent2)', lineHeight: 1 }}>
           Wave
         </div>
         <div style={{

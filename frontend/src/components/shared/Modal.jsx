@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 export default function Modal({ open, onClose, children, title }) {
+  const isMobile = useIsMobile();
   return (
     <AnimatePresence>
       {open && (
@@ -13,7 +15,7 @@ export default function Modal({ open, onClose, children, title }) {
             position: 'fixed', inset: 0, zIndex: 100,
             background: 'rgba(30,15,5,0.55)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 16,
+            padding: isMobile ? 12 : 16,
           }}
         >
           <motion.div
@@ -26,8 +28,8 @@ export default function Modal({ open, onClose, children, title }) {
               background: 'var(--c-surface)',
               borderRadius: 'var(--r-lg)',
               border: '1px solid var(--c-border2)',
-              padding: '24px 28px',
-              maxWidth: 460, width: '100%',
+              padding: isMobile ? '16px' : '24px 28px',
+              maxWidth: isMobile ? '95vw' : 460, width: '100%',
               boxShadow: 'var(--shadow-window)',
             }}
           >

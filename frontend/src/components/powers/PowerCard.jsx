@@ -7,6 +7,7 @@ import PlayerAvatar from '../shared/PlayerAvatar';
 import socket from '../../socket';
 import useGameStore from '../../store/gameStore';
 import { useLang } from '../../hooks/useLang';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const POWER_ICONS = {
   cuartiles: '🔭',
@@ -151,6 +152,7 @@ function PowerSlot({ power, isFree, purchased, queued, alreadyUsed, isClueGiving
 
 export default function PowerCard() {
   const L = useLang();
+  const isMobile = useIsMobile();
   const { myPowers, activePowers, players, myPlayer, round, game } = useGameStore();
   const [openPowerId, setOpenPowerId] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -220,7 +222,9 @@ export default function PowerCard() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         style={{
-          position: 'fixed', bottom: 24, right: 24,
+          position: 'fixed',
+          bottom: isMobile ? 68 : 24,
+          right: isMobile ? 8 : 24,
           zIndex: 50,
           background: 'rgba(15,15,20,0.85)',
           backdropFilter: 'blur(12px)',

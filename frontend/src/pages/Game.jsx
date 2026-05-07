@@ -15,6 +15,7 @@ import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
 import { useLang } from '../hooks/useLang';
 import { useSettings } from '../context/SettingsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const TEAM_COLORS = ['#6c63ff', '#f97316', '#10b981', '#ef4444', '#fbbf24'];
 const teamColor = (n) => TEAM_COLORS[(n - 1) % TEAM_COLORS.length];
@@ -257,6 +258,8 @@ function GameOver({ gameOver, gameStats, myPlayer, players, isHost, returnToLobb
 
 export default function Game() {
   const L = useLang();
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = React.useState('game');
   const { round, game, myPlayer, players, gameOver, gameStats, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
   if (!game || !myPlayer) return null;
 
@@ -286,34 +289,136 @@ export default function Game() {
     );
   }
 
-  if (!round) {
-    const hasTeamActivity = Object.keys(teamRounds).length > 0;
+  const isRevealed = !!(revealData || ['revealing','scoring','done','revealed'].includes(round?.status));
+  const canAdvanceRound = isRevealed && (!isTeamsMode || allTeamRoundsDone);
+
+  // ── Shared sidebar content ────────────────────────────────────
+  const sidebarContent = (
+    <>
+      {isTeamsMode && (
+        <OtherTeamsStatus
+          teamRounds={teamRounds}
+          myTeamNum={round ? myTeamNum : null}
+          players={players}
+          allTeamRoundsDone={allTeamRoundsDone}
+        />
+      )}
+      <Leaderboard />
+      {!isMobile && <PowerToast />}
+    </>
+  );
+
+  // ── Shared main content ───────────────────────────────────────
+  const mainContent = !round ? (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+      <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>
+        {Object.keys(teamRounds).length > 0 ? L.watchingGame : L.preparingRound}
+      </div>
+    </div>
+  ) : (
+    <>
+      <AnimatePresence mode="wait">
+        {round.status === 'clue_giving' && (
+          <motion.div key="clue" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ClueGiving />
+          </motion.div>
+        )}
+        {round.status === 'guessing' && (
+          <motion.div key="guess" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <Guessing />
+          </motion.div>
+        )}
+        {isRevealed && (
+          <motion.div key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <Revealing />
+            {isHost && canAdvanceRound && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
+                style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}
+              >
+                <Button onClick={advanceRound}>{L.nextRound}</Button>
+              </motion.div>
+            )}
+            {isHost && isTeamsMode && !allTeamRoundsDone && isRevealed && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}
+              >
+                {L.waitingOtherTeam}
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {isHost && round.status === 'guessing' && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
+          <Button variant="ghost" onClick={requestReveal} size="sm">{L.revealNow}</Button>
+        </div>
+      )}
+    </>
+  );
+
+  // ── Mobile layout ─────────────────────────────────────────────
+  if (isMobile) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 210px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-          {hasTeamActivity
-            ? <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>{L.watchingGame}</div>
-            : <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>{L.preparingRound}</div>
-          }
-        </div>
-        <div style={{ padding: '20px 18px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
-          {isTeamsMode && (
-            <OtherTeamsStatus
-              teamRounds={teamRounds}
-              myTeamNum={null}
-              players={players}
-              allTeamRoundsDone={allTeamRoundsDone}
-            />
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        {/* Mobile header */}
+        <div style={{
+          padding: '10px 48px 10px 12px',
+          borderBottom: '1px solid var(--c-border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'var(--c-surface)', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--c-accent2)' }}>Wave</span>
+            <span style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 10, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+              {game.mode}
+            </span>
+          </div>
+          {round && (
+            <span style={{ fontSize: 12, color: 'var(--c-muted)' }}>
+              {game.win_condition === 'points' ? L.goalPts(game.win_value) : L.roundsGoal(round.round_number, game.win_value)}
+            </span>
           )}
-          <Leaderboard />
         </div>
+
+        {/* Tab content */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px 12px 70px' }}>
+          {mobileTab === 'game' ? mainContent : sidebarContent}
+        </div>
+
+        {/* Bottom nav */}
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, height: 52,
+          background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)',
+          display: 'flex', zIndex: 40,
+        }}>
+          {[
+            { key: 'game',   label: '🎮 Juego' },
+            { key: 'scores', label: '📊 Puntajes' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setMobileTab(tab.key)}
+              style={{
+                flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13,
+                color: mobileTab === tab.key ? 'var(--c-accent2)' : 'var(--c-muted)',
+                borderTop: `2px solid ${mobileTab === tab.key ? 'var(--c-accent2)' : 'transparent'}`,
+                transition: 'color 0.15s, border-color 0.15s',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <PowerCard />
+        <ReactionBar />
+        <PowerToast />
       </div>
     );
   }
 
-  const isRevealed = !!(revealData || ['revealing','scoring','done','revealed'].includes(round?.status));
-  const canAdvanceRound = isRevealed && (!isTeamsMode || allTeamRoundsDone);
-
+  // ── Desktop layout ────────────────────────────────────────────
   return (
     <div style={{
       minHeight: '100vh',
@@ -332,66 +437,23 @@ export default function Game() {
           <span style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
             {game.mode}
           </span>
-          <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>{L.roundLabel(round.round_number)}</span>
+          {round && <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>{L.roundLabel(round.round_number)}</span>}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>
-          {game.win_condition === 'points' ? L.goalPts(game.win_value) : L.roundsGoal(round.round_number, game.win_value)}
-        </div>
-      </div>
-
-      {/* Main */}
-      <div style={{ padding: '28px 24px', overflow: 'auto' }}>
-        <AnimatePresence mode="wait">
-          {round.status === 'clue_giving' && (
-            <motion.div key="clue" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <ClueGiving />
-            </motion.div>
-          )}
-          {round.status === 'guessing' && (
-            <motion.div key="guess" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Guessing />
-            </motion.div>
-          )}
-          {isRevealed && (
-            <motion.div key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Revealing />
-              {isHost && canAdvanceRound && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
-                  style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}
-                >
-                  <Button onClick={advanceRound}>{L.nextRound}</Button>
-                </motion.div>
-              )}
-              {isHost && isTeamsMode && !allTeamRoundsDone && isRevealed && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-                  style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}
-                >
-                  {L.waitingOtherTeam}
-                </motion.div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {isHost && round.status === 'guessing' && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-            <Button variant="ghost" onClick={requestReveal} size="sm">{L.revealNow}</Button>
+        {round && (
+          <div style={{ fontSize: 12, color: 'var(--c-muted)' }}>
+            {game.win_condition === 'points' ? L.goalPts(game.win_value) : L.roundsGoal(round.round_number, game.win_value)}
           </div>
         )}
       </div>
 
+      {/* Main */}
+      <div style={{ padding: '28px 24px', overflow: 'auto' }}>
+        {mainContent}
+      </div>
+
       {/* Sidebar */}
       <div style={{ padding: '20px 18px', borderLeft: '1px solid var(--c-border)', overflowY: 'auto' }}>
-        {isTeamsMode && (
-          <OtherTeamsStatus
-            teamRounds={teamRounds}
-            myTeamNum={myTeamNum}
-            players={players}
-            allTeamRoundsDone={allTeamRoundsDone}
-          />
-        )}
-        <Leaderboard />
-        <PowerToast />
+        {sidebarContent}
       </div>
 
       <PowerCard />

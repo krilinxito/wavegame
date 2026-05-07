@@ -8,6 +8,7 @@ import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { useLang } from '../hooks/useLang';
 import { useSettings } from '../context/SettingsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { DEFAULT_CATEGORIES } from '../data/defaultCategories';
 import { DEFAULT_CHALLENGES } from '../data/defaultChallenges';
 import { QRCodeSVG } from 'qrcode.react';
@@ -29,6 +30,7 @@ const emojify = str => str.replace(/:([a-z0-9_]+):/gi, (m, code) => SHORTCODES[c
 export default function Lobby() {
   const L = useLang();
   const { lang } = useSettings();
+  const isMobile = useIsMobile();
   const { game, players, myPlayer, categories, challenges } = useGameStore();
   const [newCat, setNewCat]     = useState({ term: '', left: '', right: '' });
   const [importMsg, setImportMsg] = useState('');
@@ -40,7 +42,7 @@ export default function Lobby() {
   const [selectedChallengePresets, setSelectedChallengePresets] = useState(new Set());
   const [newChallenge, setNewChallenge] = useState({ name: '', description: '' });
   const [showShare, setShowShare] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('wave_tutorial_seen'));
+  const [showTutorial, setShowTutorial] = useState(false);
   const [presetSearch, setPresetSearch] = useState('');
   const [selectedPresets, setSelectedPresets] = useState(new Set());
   const [config, setConfig]     = useState({
@@ -169,7 +171,7 @@ export default function Lobby() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 16 }}>
+        <div style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 16 } : { display: 'grid', gridTemplateColumns: '1fr 260px', gap: 16 }}>
 
           {/* Left column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -531,14 +533,25 @@ export default function Lobby() {
         </div>
       </div>
 
-      {/* Presets modal */}
+      {/* Tutorial button — bottom-left corner */}
+      <button
+        onClick={() => { playSfx('sfx_click_alt'); setShowTutorial(true); }}
+        style={{
+          position: 'fixed', bottom: isMobile ? 68 : 16, right: 16, zIndex: 30,
+          background: 'var(--c-surface)', border: '1px solid var(--c-border2)',
+          borderRadius: 'var(--r-sm)', padding: '6px 12px',
+          cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12,
+          fontFamily: 'Nunito, sans-serif', fontWeight: 700,
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        {lang === 'en' ? '? Tutorial' : '? Tutorial'}
+      </button>
+
       {/* Tutorial overlay */}
       <AnimatePresence>
         {showTutorial && (
-          <TutorialOverlay onClose={() => {
-            localStorage.setItem('wave_tutorial_seen', '1');
-            setShowTutorial(false);
-          }} />
+          <TutorialOverlay onClose={() => setShowTutorial(false)} />
         )}
       </AnimatePresence>
 
@@ -553,7 +566,7 @@ export default function Lobby() {
             >
               <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
                 onClick={e => e.stopPropagation()}
-                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', padding: '28px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minWidth: 280 }}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', padding: isMobile ? '20px 16px' : '28px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%', maxWidth: isMobile ? '95vw' : 340 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{lang === 'en' ? 'Invite players' : 'Invitá jugadores'}</div>
                 <div style={{ background: '#fff', padding: 12, borderRadius: 12 }}>
@@ -586,9 +599,9 @@ export default function Lobby() {
             >
               <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
                 onClick={e => e.stopPropagation()}
-                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: isMobile ? '95vw' : 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
               >
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ padding: isMobile ? '12px 14px' : '16px 20px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ flex: 1, fontWeight: 700, fontSize: 15 }}>🎲 {lang === 'en' ? 'Challenge presets' : 'Retos predeterminados'}</span>
                   <button onClick={() => setShowChallengePresets(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--c-muted)', lineHeight: 1 }}>✕</button>
                 </div>
@@ -646,7 +659,7 @@ export default function Lobby() {
               <motion.div
                 initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
                 onClick={e => e.stopPropagation()}
-                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-lg)', width: '100%', maxWidth: isMobile ? '95vw' : 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
               >
                 {/* Header */}
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
