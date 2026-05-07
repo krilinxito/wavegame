@@ -16,7 +16,8 @@ export default function ClueGiving() {
   const [clue, setClue] = useState('');
 
   const isPsychic = round?.psychic_id === myPlayer?.id;
-  const activeCount = players.filter(p => !p.is_spectator).length;
+  const isTeamsMode = !!round?.team_num;
+  const activeCount = players.filter(p => p.id !== round?.psychic_id && !p.is_spectator).length;
   const myVoted = skipVotes?.includes(myPlayer?.id);
 
   const voteSkip = () => socket.emit('vote_skip_category', { roundId: round.id });
@@ -103,7 +104,7 @@ export default function ClueGiving() {
         </motion.div>
       )}
 
-      {!myPlayer?.is_spectator && (
+      {!isTeamsMode && !isPsychic && !myPlayer?.is_spectator && (
         <motion.div {...slideUp} style={{ textAlign: 'center' }}>
           <button
             onClick={voteSkip}

@@ -125,26 +125,33 @@ module.exports = function roundHandlers(io, socket) {
       const round = await getRound(roundId);
       if (!round || round.status !== 'clue_giving') return;
 
+      // Skip is disabled in teams mode
+      if (round.team_num) return;
+
       const player = await cache.getPlayer(gameId, playerId);
       if (!player || player.is_spectator) return;
 
-      if (round.team_num && player.team !== round.team_num) return;
+      // Psychic cannot vote to skip
+      if (round.psychic_id === playerId) return;
 
       await cache.toggleSkipVote(roundId, playerId);
       const votes = await cache.getSkipVotes(roundId);
 
       const allPlayers = await cache.getPlayers(gameId);
-      const eligible = round.team_num
-        ? allPlayers.filter(p => p.team === round.team_num && !p.is_spectator && p.connected)
-        : allPlayers.filter(p => !p.is_spectator && p.connected);
+      // Exclude psychic from eligible voters
+      const eligible = allPlayers.filter(p => p.id !== round.psychic_id && !p.is_spectator && p.connected);
+
+      // Only count votes from currently eligible players
+      const eligibleIds = new Set(eligible.map(p => p.id));
+      const validVotes = votes.filter(id => eligibleIds.has(id));
 
       io.to(socket.data.roomCode).emit('skip_vote_updated', {
         roundId,
-        votes,
+        votes: validVotes,
         total: eligible.length,
       });
 
-      if (votes.length > eligible.length / 2) {
+      if (validVotes.length >= Math.ceil(eligible.length / 2)) {
         await cache.clearSkipVotes(roundId);
 
         const newCategory = await getUnusedCategory(gameId);

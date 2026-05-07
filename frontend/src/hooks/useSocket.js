@@ -16,7 +16,17 @@ export function useSocket() {
 
     socket.on('player_joined', ({ player }) => store.addPlayer(player));
     socket.on('player_updated', ({ player }) => store.updatePlayer(player));
-    socket.on('player_left', ({ playerId }) => store.removePlayer(playerId));
+    socket.on('player_left', ({ playerId }) => {
+      store.removePlayer(playerId);
+      // If we're alone in an active game, return to lobby
+      setTimeout(() => {
+        const { game, myPlayer, players } = useGameStore.getState();
+        if (game?.status !== 'playing') return;
+        if (!myPlayer?.is_host) return;
+        const others = players.filter(p => p.id !== myPlayer.id && !p.is_spectator);
+        if (others.length === 0) socket.emit('return_to_lobby', { gameId: game.id });
+      }, 300);
+    });
 
     socket.on('host_changed', ({ newHostId }) => {
       // Update all players: clear old host flag, set new one
@@ -26,6 +36,12 @@ export function useSocket() {
           ? { ...state.myPlayer, is_host: state.myPlayer.id === newHostId }
           : state.myPlayer,
       }));
+      // If we just became host and are alone in an active game, return to lobby
+      const { game, myPlayer: updatedMe, players } = useGameStore.getState();
+      if (game?.status !== 'playing') return;
+      if (updatedMe?.id !== newHostId) return;
+      const others = players.filter(p => p.id !== newHostId && !p.is_spectator);
+      if (others.length === 0) socket.emit('return_to_lobby', { gameId: game.id });
     });
 
     socket.on('config_updated', ({ game }) => store.setGame(game));

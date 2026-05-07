@@ -26,7 +26,7 @@ const SHORTCODES = {
 };
 const emojify = str => str.replace(/:([a-z0-9_]+):/gi, (m, code) => SHORTCODES[code.toLowerCase()] ?? m);
 
-export default function Lobby() {
+export default function Lobby({ onGoHome }) {
   const L = useLang();
   const { lang } = useSettings();
   const isMobile = useIsMobile();
@@ -155,7 +155,7 @@ export default function Lobby() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <span style={{ fontFamily: 'Fredoka One', fontSize: 28, color: 'var(--c-accent2)' }}>Wave</span>
+            <span onClick={onGoHome} style={{ fontFamily: 'Fredoka One', fontSize: 28, color: 'var(--c-accent2)', cursor: 'pointer' }}>Wave</span>
             <span style={{ fontSize: 12, color: 'var(--c-muted)', marginLeft: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
               {L.waitingRoom} · {L.modes[game.mode]?.label}
             </span>

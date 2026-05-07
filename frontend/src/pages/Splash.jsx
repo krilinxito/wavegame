@@ -1,9 +1,14 @@
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/shared/Button';
 import { useIsMobile } from '../hooks/useIsMobile';
+import TutorialOverlay from '../components/shared/TutorialOverlay';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Splash({ onPlay }) {
   const isMobile = useIsMobile();
+  const { lang } = useSettings();
+  const [showTutorial, setShowTutorial] = useState(false);
   return (
     <div style={{
       minHeight: '100vh',
@@ -42,9 +47,31 @@ export default function Splash({ onPlay }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.35 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
       >
         <Button size="lg" onClick={onPlay}>Jugar</Button>
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.55 }}
+          onClick={() => setShowTutorial(true)}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--c-muted)', fontSize: 13,
+            fontFamily: 'Nunito, sans-serif', fontWeight: 700,
+            letterSpacing: 0.5,
+            textDecoration: 'underline', textDecorationStyle: 'dotted',
+            textUnderlineOffset: 3,
+            padding: '4px 8px',
+          }}
+        >
+          {lang === 'en' ? 'How to play?' : '¿Cómo jugar?'}
+        </motion.button>
       </motion.div>
+
+      <AnimatePresence>
+        {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

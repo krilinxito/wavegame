@@ -10,6 +10,7 @@ import PowerToast from '../components/powers/PowerToast';
 import Leaderboard from '../components/shared/Leaderboard';
 import ReactionBar from '../components/shared/ReactionBar';
 import Button from '../components/shared/Button';
+import Modal from '../components/shared/Modal';
 import socket from '../socket';
 import useGameStore from '../store/gameStore';
 import { getPlayerColor } from '../components/shared/PlayerAvatar';
@@ -256,10 +257,12 @@ function GameOver({ gameOver, gameStats, myPlayer, players, isHost, returnToLobb
   );
 }
 
-export default function Game() {
+export default function Game({ onGoHome }) {
   const L = useLang();
+  const { lang } = useSettings();
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = React.useState('game');
+  const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
   const { round, game, myPlayer, players, gameOver, gameStats, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
   if (!game || !myPlayer) return null;
 
@@ -375,7 +378,7 @@ export default function Game() {
           background: 'var(--c-surface)', flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--c-accent2)' }}>Wave</span>
+            <span onClick={() => setShowLeaveConfirm(true)} style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--c-accent2)', cursor: 'pointer' }}>Wave</span>
             <span style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 10, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
               {game.mode}
             </span>
@@ -421,6 +424,26 @@ export default function Game() {
         <PowerCard />
         <ReactionBar />
         <PowerToast />
+
+        <Modal
+          open={showLeaveConfirm}
+          onClose={() => setShowLeaveConfirm(false)}
+          title={lang === 'en' ? '⚠ Leave game?' : '⚠ ¿Salir de la partida?'}
+        >
+          <p style={{ fontSize: 14, color: 'var(--c-muted)', marginBottom: 16 }}>
+            {lang === 'en'
+              ? 'You will leave the current game. This cannot be undone.'
+              : 'Vas a salir de la partida en curso.'}
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button onClick={onGoHome} style={{ flex: 1 }}>
+              {lang === 'en' ? 'Leave' : 'Salir'}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowLeaveConfirm(false)} style={{ flex: 1 }}>
+              {lang === 'en' ? 'Stay' : 'Quedarse'}
+            </Button>
+          </div>
+        </Modal>
       </div>
     );
   }
@@ -440,7 +463,7 @@ export default function Game() {
         background: 'var(--c-surface)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-accent2)' }}>Wave</span>
+          <span onClick={() => setShowLeaveConfirm(true)} style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-accent2)', cursor: 'pointer' }}>Wave</span>
           <span style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
             {game.mode}
           </span>
@@ -465,6 +488,26 @@ export default function Game() {
 
       <PowerCard />
       <ReactionBar />
+
+      <Modal
+        open={showLeaveConfirm}
+        onClose={() => setShowLeaveConfirm(false)}
+        title={lang === 'en' ? '⚠ Leave game?' : '⚠ ¿Salir de la partida?'}
+      >
+        <p style={{ fontSize: 14, color: 'var(--c-muted)', marginBottom: 16 }}>
+          {lang === 'en'
+            ? 'You will leave the current game. This cannot be undone.'
+            : 'Vas a salir de la partida en curso.'}
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button onClick={onGoHome} style={{ flex: 1 }}>
+            {lang === 'en' ? 'Leave' : 'Salir'}
+          </Button>
+          <Button variant="ghost" onClick={() => setShowLeaveConfirm(false)} style={{ flex: 1 }}>
+            {lang === 'en' ? 'Stay' : 'Quedarse'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

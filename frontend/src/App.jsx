@@ -161,8 +161,8 @@ function AppInner() {
       <div style={{ position: 'relative', zIndex: 1 }}>
         {page === 'splash' && <Splash onPlay={() => setPage('home')} />}
         {page === 'home'  && <Home onJoin={handleJoin} />}
-        {page === 'lobby' && <Lobby />}
-        {page === 'game'  && <Game />}
+        {page === 'lobby' && <Lobby onGoHome={() => { socket.disconnect(); useGameStore.getState().reset(); setPage('home'); }} />}
+        {page === 'game'  && <Game onGoHome={() => { socket.disconnect(); useGameStore.getState().reset(); setPage('home'); }} />}
       </div>
 
       <Modal
