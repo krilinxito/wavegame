@@ -4,6 +4,7 @@ const { computeScore, resolveBasta } = require('../services/scoringService');
 const { getActivePowers, applyQueuedPowers } = require('../services/powerService');
 const { updatePlayerScore, getPlayersForGame } = require('../services/playerService');
 const { checkWinCondition, getGame } = require('../services/gameService');
+const { startNextRound } = require('../services/roundStartService');
 
 async function computeGameStats(gameId) {
   const allRounds = await cache.getRoundsForGame(gameId);
@@ -299,6 +300,14 @@ async function triggerReveal(io, socket, roundId) {
         finalScores: updatedPlayers.sort((a, b) => b.score - a.score),
         stats,
       });
+    } else {
+      const currentGame = await getGame(round.game_id);
+      if (currentGame.auto_advance && currentGame.status === 'playing') {
+        setTimeout(() => {
+          startNextRound(io, socket.data.roomCode, round.game_id, currentGame.mode)
+            .catch(err => console.error('auto_advance error:', err));
+        }, 5000);
+      }
     }
   }, 500);
 }

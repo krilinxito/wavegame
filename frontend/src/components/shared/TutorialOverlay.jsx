@@ -20,12 +20,56 @@ const SLIDES = {
     { title: '💬 Da una pista', desc: 'Una sola palabra o frase para guiar a todos hacia la posición secreta.' },
     { title: '🎯 Los demás mueven el dial', desc: 'Cada jugador arrastra el dial al lugar donde cree que está el objetivo.' },
     { title: '✨ ¡Se revelan los resultados!', desc: 'Bullseye 🎯 = +4 · Cerca 🔥 = +3 · Casi ✓ = +2 · El psíquico gana puntos si aciertan.' },
+    { title: '🃏 Las categorías', desc: '', type: 'info', items: [
+      'Cada categoría tiene un <b>concepto central</b> y <b>dos extremos opuestos</b>.',
+      'Ejemplo: <b>"Temperatura"</b> → extremos <b>Frío</b> y <b>Caliente</b>.',
+      'Las mejores son <b>subjetivas y debatibles</b> — sin respuesta obvia.',
+      'Evitá extremos que sean hechos objetivos (ej: "Países grandes → Pequeño/Grande" tiene respuesta única).',
+      'Tips: animales, películas, canciones, conceptos abstractos, lugares... ¡la creatividad manda!',
+    ]},
+    { title: '🎮 Modos de juego', desc: '', type: 'info', modes: [
+      { name: 'Normal', desc: 'Psychic rotante · poderes activos · gana el primero en llegar al puntaje.' },
+      { name: 'Teams', desc: 'Duos · cada pareja tiene su espectro · gana la pareja con más puntos.' },
+      { name: 'BASTA ⚡', desc: 'El primero en confirmar es el único que puede ganar puntos esa ronda.' },
+    ]},
+    { title: '⚡ Poderes', desc: '', type: 'info',
+      intro: 'En modo Normal tenés 75% de chance de recibir un poder. Compralo con puntos o ganá uno <b>gratis</b> con Bullseye.',
+      powers: [
+        { icon: '🔮', name: 'Cuartiles', cost: '3 pts', desc: 'Revela en qué cuartil está el objetivo.' },
+        { icon: '☠️', name: 'Veneno',    cost: '3 pts', desc: 'El objetivo pierde 3 pts. Si fallás, tu penalización se duplica.' },
+        { icon: '🛡️', name: 'Escudo',   cost: '2 pts', desc: 'Si fallás, no recibís penalización.' },
+        { icon: '🚫', name: 'Bloqueo',  cost: '3 pts', desc: 'El objetivo no puede adivinar esta ronda.' },
+        { icon: '🔄', name: 'Switch',   cost: '3 pts', desc: 'Intercambia tu posición con la de otro jugador.' },
+      ],
+    },
   ],
   en: [
     { title: '🧠 The psychic knows the target', desc: 'Only they see the secret position. Others only see the spectrum extremes.' },
     { title: '💬 Give a clue', desc: 'One word or phrase to guide everyone toward the secret position.' },
     { title: '🎯 Others move the dial', desc: 'Each player drags the dial to where they think the target is.' },
     { title: '✨ Results revealed!', desc: 'Bullseye 🎯 = +4 · Close 🔥 = +3 · Near ✓ = +2 · The psychic earns points if others score.' },
+    { title: '🃏 Categories', desc: '', type: 'info', items: [
+      'Each category has a <b>central concept</b> and <b>two opposite extremes</b>.',
+      'Example: <b>"Temperature"</b> → extremes <b>Cold</b> and <b>Hot</b>.',
+      'The best ones are <b>subjective and debatable</b> — no obvious answer.',
+      'Avoid extremes that are objective facts (e.g. "Big countries → Small/Big" has one answer).',
+      'Tips: animals, movies, songs, abstract concepts, places... creativity is key!',
+    ]},
+    { title: '🎮 Game modes', desc: '', type: 'info', modes: [
+      { name: 'Normal', desc: 'Rotating psychic · powers active · first to reach the score goal wins.' },
+      { name: 'Teams', desc: 'Pairs · each pair gets their own spectrum · most points wins.' },
+      { name: 'BASTA ⚡', desc: 'First to confirm is the only one who can score that round.' },
+    ]},
+    { title: '⚡ Powers', desc: '', type: 'info',
+      intro: 'In Normal mode you have a 75% chance of getting a power offer. Buy it with points or get one <b>for free</b> with Bullseye.',
+      powers: [
+        { icon: '🔮', name: 'Quartiles', cost: '3 pts', desc: 'Reveals which quartile the target is in.' },
+        { icon: '☠️', name: 'Poison',    cost: '3 pts', desc: 'Target loses 3 pts instantly. If you miss, your penalty doubles.' },
+        { icon: '🛡️', name: 'Shield',   cost: '2 pts', desc: "If you miss, you don't receive a penalty." },
+        { icon: '🚫', name: 'Block',     cost: '3 pts', desc: "Target can't guess this round." },
+        { icon: '🔄', name: 'Switch',    cost: '3 pts', desc: "Swaps your guess position with another player's." },
+      ],
+    },
   ],
 };
 
@@ -121,6 +165,51 @@ function DialSlide({ slide }) {
   );
 }
 
+function InfoSlide({ data }) {
+  return (
+    <div style={{ width: '100%', maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {data.items && (
+        <ul style={{ margin: 0, padding: '0 0 0 16px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {data.items.map((item, i) => (
+            <li key={i} style={{ color: 'var(--c-muted)', fontSize: 12.5, lineHeight: 1.5 }}
+              dangerouslySetInnerHTML={{ __html: item }}
+            />
+          ))}
+        </ul>
+      )}
+      {data.intro && (
+        <p style={{ color: 'var(--c-muted)', fontSize: 12.5, lineHeight: 1.5, margin: '0 0 4px' }}
+          dangerouslySetInnerHTML={{ __html: data.intro }}
+        />
+      )}
+      {data.modes && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {data.modes.map((m, i) => (
+            <div key={i} style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border2)', borderRadius: 8, padding: '7px 10px' }}>
+              <span style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-accent2)', marginRight: 6 }}>{m.name}</span>
+              <span style={{ color: 'var(--c-muted)', fontSize: 12, lineHeight: 1.4 }}>{m.desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.powers && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {data.powers.map((p, i) => (
+            <div key={i} style={{ background: 'var(--c-surface2)', border: '1px solid var(--c-border2)', borderRadius: 8, padding: '7px 10px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{p.icon}</span>
+              <div>
+                <span style={{ fontFamily: 'Fredoka One', fontSize: 13, color: 'var(--c-text)', marginRight: 5 }}>{p.name}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-accent)', background: 'rgba(99,102,241,0.12)', borderRadius: 4, padding: '1px 4px', marginRight: 5 }}>{p.cost}</span>
+                <span style={{ color: 'var(--c-muted)', fontSize: 12, lineHeight: 1.4 }}>{p.desc}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TutorialOverlay({ onClose }) {
   const { lang } = useSettings();
   const slides = SLIDES[lang] ?? SLIDES.es;
@@ -165,8 +254,11 @@ export default function TutorialOverlay({ onClose }) {
             </motion.div>
           </AnimatePresence>
 
-          {/* Dial demo */}
-          <DialSlide slide={slide} />
+          {/* Dial / Info */}
+          {slides[slide].type === 'info'
+            ? <InfoSlide data={slides[slide]} />
+            : <DialSlide slide={slide} />
+          }
 
           {/* Navigation */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>

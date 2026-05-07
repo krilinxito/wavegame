@@ -35,6 +35,7 @@ router.post('/', async (req, res) => {
       score_bullseye: 4,
       score_close: 3,
       score_near: 2,
+      auto_advance: false,
       created_at: Date.now(),
     };
 

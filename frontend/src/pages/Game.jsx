@@ -338,6 +338,13 @@ export default function Game() {
                 <Button onClick={advanceRound}>{L.nextRound}</Button>
               </motion.div>
             )}
+            {!isHost && canAdvanceRound && !game.auto_advance && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}
+              >
+                {L.waitingHostNextRound}
+              </motion.div>
+            )}
             {isHost && isTeamsMode && !allTeamRoundsDone && isRevealed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                 style={{ textAlign: 'center', marginTop: 16, color: 'var(--c-muted)', fontSize: 13 }}

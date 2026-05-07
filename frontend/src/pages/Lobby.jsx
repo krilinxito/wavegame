@@ -12,7 +12,6 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { DEFAULT_CATEGORIES } from '../data/defaultCategories';
 import { DEFAULT_CHALLENGES } from '../data/defaultChallenges';
 import { QRCodeSVG } from 'qrcode.react';
-import TutorialOverlay from '../components/shared/TutorialOverlay';
 
 const SHORTCODES = {
   fire:'🔥',skull:'💀',heart:'❤️',ice:'🧊',snowflake:'❄️',rocket:'🚀',star:'⭐',
@@ -42,7 +41,6 @@ export default function Lobby() {
   const [selectedChallengePresets, setSelectedChallengePresets] = useState(new Set());
   const [newChallenge, setNewChallenge] = useState({ name: '', description: '' });
   const [showShare, setShowShare] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [presetSearch, setPresetSearch] = useState('');
   const [selectedPresets, setSelectedPresets] = useState(new Set());
   const [config, setConfig]     = useState({
@@ -56,6 +54,7 @@ export default function Lobby() {
     score_close:    game?.score_close    ?? 3,
     score_near:     game?.score_near     ?? 2,
     min_score:      game?.min_score      ?? null,
+    auto_advance:   game?.auto_advance   ?? false,
   });
 
   if (!game || !myPlayer) return null;
@@ -518,6 +517,16 @@ export default function Lobby() {
                         ))}
                       </div>
 
+                      <div style={labelStyle}>{L.autoAdvance}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {[false, true].map(v => (
+                          <button key={String(v)} onClick={() => { playSfx('sfx_click_alt'); setConfig(c => ({ ...c, auto_advance: v })); }}
+                            style={{ background: config.auto_advance === v ? 'var(--c-accent)' : 'var(--c-surface2)', border: '1px solid var(--c-border)', borderRadius: 'var(--r-sm)', padding: '6px', cursor: 'pointer', color: config.auto_advance === v ? '#fff' : 'var(--c-text)', fontFamily: 'Nunito, sans-serif', fontSize: 12, fontWeight: 700 }}>
+                            {v ? 'On' : 'Off'}
+                          </button>
+                        ))}
+                      </div>
+
                       <Button onClick={saveConfig} variant="secondary" size="sm">{L.save}</Button>
                     </motion.div>
                   )}
@@ -532,28 +541,6 @@ export default function Lobby() {
           </div>
         </div>
       </div>
-
-      {/* Tutorial button — bottom-left corner */}
-      <button
-        onClick={() => { playSfx('sfx_click_alt'); setShowTutorial(true); }}
-        style={{
-          position: 'fixed', bottom: isMobile ? 68 : 16, right: 16, zIndex: 30,
-          background: 'var(--c-surface)', border: '1px solid var(--c-border2)',
-          borderRadius: 'var(--r-sm)', padding: '6px 12px',
-          cursor: 'pointer', color: 'var(--c-muted)', fontSize: 12,
-          fontFamily: 'Nunito, sans-serif', fontWeight: 700,
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        {lang === 'en' ? '? Tutorial' : '? Tutorial'}
-      </button>
-
-      {/* Tutorial overlay */}
-      <AnimatePresence>
-        {showTutorial && (
-          <TutorialOverlay onClose={() => setShowTutorial(false)} />
-        )}
-      </AnimatePresence>
 
       {/* Share / QR modal */}
       <AnimatePresence>
