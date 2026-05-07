@@ -6,7 +6,9 @@ import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import AnimatedBackground from './components/shared/AnimatedBackground';
 import SettingsModal from './components/shared/SettingsModal';
+import Modal from './components/shared/Modal';
 import { SettingsProvider } from './context/SettingsContext';
+import { useSettings } from './context/SettingsContext';
 import socket from './socket';
 import { useSocket } from './hooks/useSocket';
 import useGameStore from './store/gameStore';
@@ -28,9 +30,19 @@ function AppInner() {
   }); // 'splash' | 'home' | 'lobby' | 'game'
   const [error, setError] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [dupTab, setDupTab] = useState(false);
   const { game, round, gameOver } = useGameStore();
   const prevRoundStatusRef = React.useRef(null);
   const { savePlayer } = useLocalPlayer();
+  const { lang } = useSettings();
+
+  const [tabId] = useState(() => {
+    const stored = sessionStorage.getItem('wave_tab');
+    if (stored) return stored;
+    const id = Math.random().toString(36).slice(2);
+    sessionStorage.setItem('wave_tab', id);
+    return id;
+  });
 
   useSocket(); // mount all socket listeners
 
@@ -83,6 +95,24 @@ function AppInner() {
     return () => window.removeEventListener('wave:kicked', handler);
   }, []);
 
+  // Detect same player connected in another tab
+  useEffect(() => {
+    if (page !== 'lobby' && page !== 'game') return;
+    const roomCode = game?.room_code;
+    if (!roomCode) return;
+
+    const ch = new BroadcastChannel('wave_presence');
+    const announce = () => ch.postMessage({ roomCode, tabId });
+    announce();
+    const timer = setInterval(announce, 5000);
+
+    ch.onmessage = ({ data }) => {
+      if (data.roomCode === roomCode && data.tabId !== tabId) setDupTab(true);
+    };
+
+    return () => { clearInterval(timer); ch.close(); };
+  }, [page, game?.room_code]);
+
   const handleJoin = (roomCode, gameId, displayName, photoPath, savedPlayerId) => {
     socket.connect();
     socket.emit('join_room', { roomCode, playerId: savedPlayerId ?? null, displayName, photoPath });
@@ -134,6 +164,41 @@ function AppInner() {
         {page === 'lobby' && <Lobby />}
         {page === 'game'  && <Game />}
       </div>
+
+      <Modal
+        open={dupTab}
+        onClose={() => setDupTab(false)}
+        title={lang === 'en' ? '⚠ Already connected' : '⚠ Ya conectado'}
+      >
+        <p style={{ fontSize: 14, color: 'var(--c-muted)', marginBottom: 16 }}>
+          {lang === 'en'
+            ? 'You have this game open in another tab. Two connections may cause you to miss game events.'
+            : 'Tenés esta partida abierta en otra pestaña. Dos conexiones pueden hacer que no recibas eventos del juego.'}
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => window.close()}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 'var(--r-sm)',
+              background: 'var(--c-accent)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13,
+            }}
+          >
+            {lang === 'en' ? 'Close this tab' : 'Cerrar esta pestaña'}
+          </button>
+          <button
+            onClick={() => setDupTab(false)}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 'var(--r-sm)',
+              background: 'var(--c-surface2)', color: 'var(--c-text)',
+              border: '1px solid var(--c-border2)',
+              cursor: 'pointer', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: 13,
+            }}
+          >
+            {lang === 'en' ? 'Stay here' : 'Continuar igual'}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
