@@ -42,7 +42,7 @@ export default function Home({ onJoin }) {
   const [roomCode, setRoomCode] = useState('');
   const [tab, setTab]           = useState('create');
   const [photo, setPhoto]       = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(savedPhoto ? `${BACKEND}${savedPhoto}` : null);
+  const [photoPreview, setPhotoPreview] = useState(savedPhoto ? `${BACKEND}/uploads/${savedPhoto}` : null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [showTutorial, setShowTutorial] = useState(false);

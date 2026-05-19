@@ -20,6 +20,7 @@ const useGameStore = create((set, get) => ({
   // Teams mode parallel rounds
   teamRounds: {},        // { [teamNum]: { round, category, revealData, submittedGuesses } }
   allTeamRoundsDone: false,
+  joinedMidRound: false, // true si se unió mientras había una ronda activa
 
   // Actions
   setGame: (game) => set({ game }),
@@ -76,6 +77,7 @@ const useGameStore = create((set, get) => ({
     round: null, category: null, myPowers: [],
     revealData: null, activePowers: [], submittedGuesses: [],
     skipVotes: [], teamRounds: {}, allTeamRoundsDone: false,
+    joinedMidRound: false,
   }),
 
   reset: () => set({
@@ -83,6 +85,7 @@ const useGameStore = create((set, get) => ({
     category: null, myPowers: [],
     revealData: null, gameOver: null, gameStats: null, noCategories: false, categories: [], challenges: [], activePowers: [],
     skipVotes: [], teamRounds: {}, allTeamRoundsDone: false,
+    joinedMidRound: false,
   }),
 }));
 

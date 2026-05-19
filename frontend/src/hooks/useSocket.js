@@ -6,12 +6,13 @@ export function useSocket() {
   const store = useGameStore();
 
   useEffect(() => {
-    socket.on('room_joined', ({ game, players, myPlayer, categories, challenges }) => {
-      store.setGame(game);
-      store.setPlayers(players);
-      store.setMyPlayer(myPlayer);
-      store.setCategories(categories || []);
-      store.setChallenges(challenges || []);
+    socket.on('room_joined', ({ game, players, myPlayer, categories, challenges, activeRound, activeCategory }) => {
+      useGameStore.setState({
+        game, players, myPlayer,
+        categories: categories || [],
+        challenges: challenges || [],
+        ...(activeRound ? { round: activeRound, category: activeCategory, joinedMidRound: true } : {}),
+      });
     });
 
     socket.on('player_joined', ({ player }) => store.addPlayer(player));
@@ -53,11 +54,15 @@ export function useSocket() {
     socket.on('challenge_removed', ({ challengeId }) => store.removeChallenge(challengeId));
 
     socket.on('round_started', ({ round, category, psychicName, challenge }) => {
-      store.setRound({ ...round, psychicName, challenge: challenge ?? null });
-      store.setCategory(category);
-      store.setRevealData(null);
-      store.setGameOver(null);
-      useGameStore.setState({ activePowers: [], submittedGuesses: [], skipVotes: [], teamRounds: {}, allTeamRoundsDone: false, myPowers: [] });
+      useGameStore.setState({
+        round: { ...round, psychicName, challenge: challenge ?? null },
+        category,
+        revealData: null,
+        gameOver: null,
+        gameStats: null,
+        activePowers: [], submittedGuesses: [], skipVotes: [],
+        teamRounds: {}, allTeamRoundsDone: false, myPowers: [],
+      });
     });
 
     socket.on('team_rounds_started', ({ teamRounds }) => {
@@ -224,12 +229,9 @@ export function useSocket() {
     });
 
     socket.on('scores_updated', ({ players }) => {
-      store.setPlayers(players);
       const myPlayer = useGameStore.getState().myPlayer;
-      if (myPlayer) {
-        const updated = players.find(p => p.id === myPlayer.id);
-        if (updated) store.setMyPlayer(updated);
-      }
+      const updated = myPlayer ? (players.find(p => p.id === myPlayer.id) ?? myPlayer) : myPlayer;
+      useGameStore.setState({ players, myPlayer: updated });
     });
 
     socket.on('game_over', ({ winner, winnerTeam, teamScore, finalScores, stats }) => {

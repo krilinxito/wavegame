@@ -46,6 +46,11 @@ function AppInner() {
 
   useSocket(); // mount all socket listeners
 
+  // Reset dupTab when returning to home
+  useEffect(() => {
+    if (page === 'home' || page === 'splash') setDupTab(false);
+  }, [page]);
+
   // Navigate based on game status
   useEffect(() => {
     if (game?.status === 'playing' && page === 'lobby') setPage('game');
@@ -116,9 +121,9 @@ function AppInner() {
   const handleJoin = (roomCode, gameId, displayName, photoPath, savedPlayerId) => {
     socket.connect();
     socket.emit('join_room', { roomCode, playerId: savedPlayerId ?? null, displayName, photoPath });
-    socket.once('room_joined', ({ myPlayer }) => {
+    socket.once('room_joined', ({ myPlayer, game }) => {
       savePlayer(myPlayer.id, myPlayer.display_name, myPlayer.photo_path);
-      setPage('lobby');
+      setPage(game?.status === 'playing' ? 'game' : 'lobby');
     });
     socket.once('error', ({ message }) => setError(message));
   };

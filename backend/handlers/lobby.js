@@ -2,6 +2,7 @@ const cache = require('../cache/redis');
 const { getPlayersForGame } = require('../services/playerService');
 const { getGame, getGameByCode, updateGameConfig, startGame } = require('../services/gameService');
 const { startNextRound } = require('../services/roundStartService');
+const { triggerReveal } = require('../services/revealService');
 
 const uuidv4 = () => require('crypto').randomUUID();
 
@@ -56,7 +57,20 @@ module.exports = function lobbyHandlers(io, socket) {
       const categories = await cache.getCategories(game.id);
       const challenges = await cache.getChallenges(game.id);
 
-      socket.emit('room_joined', { game, players, myPlayer: player, categories, challenges });
+      let activeRound = null;
+      let activeCategory = null;
+      if (game.status === 'playing') {
+        const allRounds = await cache.getRoundsForGame(game.id);
+        const active = allRounds.filter(r => ['clue_giving', 'guessing'].includes(r.status));
+        activeRound = player.team
+          ? (active.find(r => r.team_num === player.team) ?? active[0] ?? null)
+          : (active[0] ?? null);
+        if (activeRound?.category_id) {
+          activeCategory = categories.find(c => c.id === activeRound.category_id) ?? null;
+        }
+      }
+
+      socket.emit('room_joined', { game, players, myPlayer: player, categories, challenges, activeRound, activeCategory });
       socket.to(roomCode).emit('player_joined', { player: { ...player, socket_id: undefined } });
 
     } catch (err) {
@@ -326,6 +340,28 @@ module.exports = function lobbyHandlers(io, socket) {
 
       if (socket.data.roomCode) {
         socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
+
+        // Si hay rondas en guessing, verificar si la desconexión completa el turno
+        const game = await getGame(gameId);
+        if (game?.status === 'playing') {
+          const allRounds = await cache.getRoundsForGame(gameId);
+          const guessingRounds = allRounds.filter(r => r.status === 'guessing');
+          for (const round of guessingRounds) {
+            const allPlayers = await getPlayersForGame(round.game_id);
+            const eligible = round.team_num
+              ? allPlayers.filter(p => p.team === round.team_num && p.id !== round.psychic_id && p.connected && !p.is_spectator)
+              : allPlayers.filter(p => p.id !== round.psychic_id && p.connected && !p.is_spectator);
+            if (eligible.length === 0) continue;
+            const roundPowers = await cache.getRoundPowers(round.id);
+            const guesses = await cache.getGuesses(round.id);
+            const guessedIds = new Set(guesses.map(g => g.player_id));
+            const blockedIds = new Set(roundPowers.filter(rp => rp.name === 'bloqueo' && rp.activated).map(rp => rp.target_player));
+            const effectiveEligible = eligible.filter(p => !blockedIds.has(p.id));
+            if (effectiveEligible.every(p => guessedIds.has(p.id))) {
+              setTimeout(() => triggerReveal(io, socket.data.roomCode, round.id), 1500);
+            }
+          }
+        }
       }
 
       if (player.is_host && gameId) {

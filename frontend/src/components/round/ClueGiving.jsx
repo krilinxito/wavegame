@@ -30,7 +30,7 @@ export default function ClueGiving() {
 
   const handleTimerExpire = () => {
     if (isPsychic && !clue.trim()) {
-      submitClue('...');
+      socket.emit('clue_timer_expired', { roundId: round.id });
     }
   };
 

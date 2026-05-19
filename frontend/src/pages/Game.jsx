@@ -263,7 +263,7 @@ export default function Game({ onGoHome }) {
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = React.useState('game');
   const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
-  const { round, game, myPlayer, players, gameOver, gameStats, noCategories, revealData, teamRounds, allTeamRoundsDone } = useGameStore();
+  const { round, game, myPlayer, players, gameOver, gameStats, noCategories, revealData, teamRounds, allTeamRoundsDone, joinedMidRound } = useGameStore();
   if (!game || !myPlayer) return null;
 
   const isHost = !!myPlayer.is_host;
@@ -312,7 +312,17 @@ export default function Game({ onGoHome }) {
   );
 
   // ── Shared main content ───────────────────────────────────────
-  const mainContent = !round ? (
+  const mainContent = (joinedMidRound && round && ['clue_giving', 'guessing'].includes(round?.status)) ? (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 16, padding: 24, textAlign: 'center' }}>
+      <div style={{ fontSize: 32 }}>⏳</div>
+      <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: 'var(--c-muted)' }}>
+        {lang === 'en' ? 'Round in progress' : 'Ronda en curso'}
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--c-muted)' }}>
+        {lang === 'en' ? 'Wait for this round to finish to join in.' : 'Esperá que termine esta ronda para participar.'}
+      </div>
+    </div>
+  ) : !round ? (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
       <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-muted)' }}>
         {Object.keys(teamRounds).length > 0 ? L.watchingGame : L.preparingRound}
@@ -376,6 +386,7 @@ export default function Game({ onGoHome }) {
           borderBottom: '1px solid var(--c-border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: 'var(--c-surface)', flexShrink: 0,
+          transform: 'translateZ(0)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span onClick={() => setShowLeaveConfirm(true)} style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--c-accent2)', cursor: 'pointer' }}>Wave</span>
@@ -400,6 +411,7 @@ export default function Game({ onGoHome }) {
           position: 'fixed', bottom: 0, left: 0, right: 0, height: 52,
           background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)',
           display: 'flex', zIndex: 40,
+          transform: 'translateZ(0)',
         }}>
           {[
             { key: 'game',   label: '🎮 Juego' },
@@ -461,6 +473,7 @@ export default function Game({ onGoHome }) {
         borderBottom: '1px solid var(--c-border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: 'var(--c-surface)',
+        transform: 'translateZ(0)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span onClick={() => setShowLeaveConfirm(true)} style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--c-accent2)', cursor: 'pointer' }}>Wave</span>

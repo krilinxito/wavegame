@@ -329,17 +329,6 @@ export default function SpectrumDial({
           })}
         </AnimatePresence>
 
-        {/* Left/Right extreme labels */}
-        {category && (
-          <>
-            <text x={leftPt.x - 4} y={14} textAnchor="end" fontSize={11} fontWeight="700" fill="#c8a878">
-              {category.left_extreme}
-            </text>
-            <text x={rightPt.x + 4} y={14} textAnchor="start" fontSize={11} fontWeight="700" fill="#c8a878">
-              {category.right_extreme}
-            </text>
-          </>
-        )}
 
         {/* Psychic overlay text (hidden target hint) */}
         {isPsychic && !isRevealing && targetPct !== null && (
@@ -348,6 +337,17 @@ export default function SpectrumDial({
           </text>
         )}
       </svg>
+
+      {category && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '2px 4px 0', marginTop: -8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#c8a878', maxWidth: '45%' }}>
+            {category.left_extreme}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#c8a878', maxWidth: '45%', textAlign: 'right' }}>
+            {category.right_extreme}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
