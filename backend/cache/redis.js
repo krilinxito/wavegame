@@ -50,6 +50,9 @@ async function getPlayers(gameId) {
 async function setPlayer(gameId, player) {
   await client.hset(`players:${gameId}`, player.id, JSON.stringify(player));
 }
+async function deletePlayer(gameId, playerId) {
+  await client.hdel(`players:${gameId}`, playerId);
+}
 
 // --- Categories ---
 async function getCategory(gameId, categoryId) {
@@ -188,7 +191,7 @@ module.exports = {
   client,
   getGame, setGame,
   getRoomGameId, setRoom,
-  getPlayer, getPlayers, setPlayer,
+  getPlayer, getPlayers, setPlayer, deletePlayer,
   getCategory, getCategories, setCategory, deleteCategory,
   getRound, setRound, getRoundsForGame,
   getRoundPowerByPlayer, getRoundPowers, getRoundPowerById, setRoundPower,

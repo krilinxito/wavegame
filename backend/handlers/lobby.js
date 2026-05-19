@@ -23,6 +23,10 @@ module.exports = function lobbyHandlers(io, socket) {
 
       if (!player) {
         const existingPlayers = await cache.getPlayers(game.id);
+        // Si el lobby tiene jugadores pero ninguno conectado, la sala está abandonada
+        if (game.status === 'lobby' && existingPlayers.length > 0 && !existingPlayers.some(p => p.connected)) {
+          return socket.emit('error', { code: 'GAME_EMPTY', message: 'Esta sala ya no tiene jugadores. Creá una nueva partida.' });
+        }
         const isHost = existingPlayers.length === 0;
         const turnOrder = existingPlayers.length;
         player = {
@@ -177,14 +181,14 @@ module.exports = function lobbyHandlers(io, socket) {
       if (game.mode === 'teams') {
         const teamCounts = {};
         for (const p of allPlayers) {
-          if (p.team) teamCounts[p.team] = (teamCounts[p.team] || 0) + 1;
+          if (p.team && p.connected) teamCounts[p.team] = (teamCounts[p.team] || 0) + 1;
         }
         const completePairs = Object.values(teamCounts).filter(c => c === 2).length;
         if (completePairs === 0)
           return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Necesitás al menos una pareja completa para el modo Teams' });
 
         for (const p of allPlayers) {
-          const inCompletePair = p.team && teamCounts[p.team] === 2;
+          const inCompletePair = p.team && teamCounts[p.team] === 2 && p.connected;
           if (!inCompletePair && !p.is_spectator) {
             p.is_spectator = true;
             p.team = null;
@@ -192,7 +196,7 @@ module.exports = function lobbyHandlers(io, socket) {
           }
         }
       } else {
-        const activePlayers = allPlayers.filter(p => !p.is_spectator);
+        const activePlayers = allPlayers.filter(p => !p.is_spectator && p.connected);
         if (activePlayers.length < 2)
           return socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Necesitás al menos 2 jugadores para iniciar' });
       }
@@ -235,11 +239,15 @@ module.exports = function lobbyHandlers(io, socket) {
       game.psychic_id = null;
       await cache.setGame(game);
 
-      // Reset player scores
+      // Remove disconnected players; reset scores for remaining
       const allPlayers = await getPlayersForGame(gameId);
       for (const p of allPlayers) {
-        p.score = 0;
-        await cache.setPlayer(gameId, p);
+        if (!p.connected) {
+          await cache.deletePlayer(gameId, p.id);
+        } else {
+          p.score = 0;
+          await cache.setPlayer(gameId, p);
+        }
       }
 
       // Reset categories
@@ -334,6 +342,31 @@ module.exports = function lobbyHandlers(io, socket) {
       const player = await cache.getPlayer(gameId, socket.data.playerId);
       if (!player) return;
 
+      const game = await getGame(gameId);
+
+      if (game?.status === 'lobby') {
+        // In lobby: remove the player entirely
+        await cache.deletePlayer(gameId, socket.data.playerId);
+
+        if (socket.data.roomCode) {
+          socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
+        }
+
+        if (player.is_host && gameId) {
+          const remaining = await cache.getPlayers(gameId);
+          const nextHost = remaining.find(p => p.id !== socket.data.playerId);
+          if (nextHost) {
+            nextHost.is_host = true;
+            await cache.setPlayer(gameId, nextHost);
+            if (socket.data.roomCode) {
+              io.to(socket.data.roomCode).emit('host_changed', { newHostId: nextHost.id });
+            }
+          }
+        }
+        return;
+      }
+
+      // In-game: mark disconnected (keep for score tracking / rejoin)
       player.socket_id = null;
       player.connected = false;
       await cache.setPlayer(gameId, player);
@@ -341,8 +374,6 @@ module.exports = function lobbyHandlers(io, socket) {
       if (socket.data.roomCode) {
         socket.to(socket.data.roomCode).emit('player_left', { playerId: socket.data.playerId });
 
-        // Si hay rondas en guessing, verificar si la desconexión completa el turno
-        const game = await getGame(gameId);
         if (game?.status === 'playing') {
           const allRounds = await cache.getRoundsForGame(gameId);
           const guessingRounds = allRounds.filter(r => r.status === 'guessing');
