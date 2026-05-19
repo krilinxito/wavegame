@@ -122,7 +122,7 @@ function AppInner() {
     socket.connect();
     socket.emit('join_room', { roomCode, playerId: savedPlayerId ?? null, displayName, photoPath });
     socket.once('room_joined', ({ myPlayer, game }) => {
-      savePlayer(myPlayer.id, myPlayer.display_name, myPlayer.photo_path);
+      savePlayer(myPlayer.id, myPlayer.display_name);
       setPage(game?.status === 'playing' ? 'game' : 'lobby');
     });
     socket.once('error', ({ message }) => setError(message));

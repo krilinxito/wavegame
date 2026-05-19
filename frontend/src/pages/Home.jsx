@@ -36,13 +36,13 @@ export default function Home({ onJoin }) {
   const isMobile = useIsMobile();
   const { lang } = useSettings();
   const s = STRINGS[lang] ?? STRINGS.es;
-  const { displayName: savedName, photoPath: savedPhoto, playerId: savedPlayerId } = useLocalPlayer();
+  const { displayName: savedName, playerId: savedPlayerId } = useLocalPlayer();
 
   const [name, setName]         = useState(savedName || '');
   const [roomCode, setRoomCode] = useState('');
   const [tab, setTab]           = useState('create');
   const [photo, setPhoto]       = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(savedPhoto ? `${BACKEND}/uploads/${savedPhoto}` : null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [showTutorial, setShowTutorial] = useState(false);
@@ -67,11 +67,11 @@ export default function Home({ onJoin }) {
   };
 
   const uploadPhoto = async () => {
-    if (!photo) return savedPhoto || null; // reuse saved path if no new photo selected
+    if (!photo) return null;
     const fd = new FormData();
     fd.append('photo', photo);
     const res = await fetch(`${BACKEND}/api/upload/photo`, { method: 'POST', body: fd });
-    if (!res.ok) return savedPhoto || null;
+    if (!res.ok) return null;
     return (await res.json()).path;
   };
 
